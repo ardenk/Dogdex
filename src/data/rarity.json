@@ -1,0 +1,5 @@
+[
+  { "id": "common", "label": "Common", "glyph": "●", "order": 1, "celebration": "none", "message": "Nice one." },
+  { "id": "uncommon", "label": "Uncommon", "glyph": "◆", "order": 2, "celebration": "toast", "message": "An uncommon sighting!" },
+  { "id": "rare", "label": "Rare", "glyph": "★", "order": 3, "celebration": "full", "message": "A rare find!" }
+]

@@ -1,0 +1,25 @@
+/* Design tokens. Contrast ratios are checked in src/test/contrast.test.ts, keep the hex values in sync. */
+:root {
+  --paper: #f3ede0;
+  --paper-sunk: #e8e0cd;
+  --card: #fbf8f1;
+  --ink: #1b1a17;
+  --ink-soft: #4a463e;
+  --accent: #c2361b; /* the one bold color */
+  --on-accent: #ffffff;
+  --accent-wash: #f6d9d0;
+
+  --font-display: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --border: 2px solid var(--ink);
+  --shadow: 3px 3px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+
+  --tap: 48px; /* minimum comfortable tap target */
+  --gap: 16px;
+  --app-width: 480px;
+  --tabbar-h: 68px;
+}

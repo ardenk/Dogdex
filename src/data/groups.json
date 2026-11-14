@@ -1,0 +1,10 @@
+[
+  { "id": "sporting", "name": "Sporting", "order": 1, "blurb": "Bred to work alongside hunters, finding and retrieving game." },
+  { "id": "hound", "name": "Hound", "order": 2, "blurb": "Bred to hunt by scent or sight, with great stamina or speed." },
+  { "id": "working", "name": "Working", "order": 3, "blurb": "Bred for guarding, pulling, and rescue work." },
+  { "id": "terrier", "name": "Terrier", "order": 4, "blurb": "Feisty, energetic dogs bred to hunt vermin." },
+  { "id": "toy", "name": "Toy", "order": 5, "blurb": "Small companions with big personalities." },
+  { "id": "non-sporting", "name": "Non-Sporting", "order": 6, "blurb": "A varied group of distinctive companions." },
+  { "id": "herding", "name": "Herding", "order": 7, "blurb": "Bred to move and manage livestock." },
+  { "id": "mixed", "name": "Mixed & Designer", "order": 8, "blurb": "Mixed breeds and popular crosses. Not AKC-recognized breeds." }
+]

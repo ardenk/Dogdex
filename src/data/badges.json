@@ -1,0 +1,44 @@
+[
+  {
+    "id": "first-dog",
+    "name": "First dog",
+    "description": "Log your very first dog.",
+    "glyph": "1",
+    "rule": { "type": "total_dogs", "gte": 1 }
+  },
+  {
+    "id": "ten-dogs",
+    "name": "Ten dogs",
+    "description": "Meet ten different dogs.",
+    "glyph": "10",
+    "rule": { "type": "total_dogs", "gte": 10 }
+  },
+  {
+    "id": "doodle-fan",
+    "name": "Met 10 doodles",
+    "description": "Meet ten different doodles.",
+    "glyph": "D",
+    "rule": { "type": "tag_count", "tag": "doodle", "gte": 10 }
+  },
+  {
+    "id": "group-complete",
+    "name": "Completed a group",
+    "description": "Log every breed in one AKC group.",
+    "glyph": "✓",
+    "rule": { "type": "group_complete", "excludeGroups": ["mixed"] }
+  },
+  {
+    "id": "rare-finds-3",
+    "name": "3 rare finds",
+    "description": "Meet three dogs of rare breeds.",
+    "glyph": "★",
+    "rule": { "type": "rarity_count", "rarity": "rare", "gte": 3 }
+  },
+  {
+    "id": "guessed-10",
+    "name": "Guessed 10 right",
+    "description": "Correctly guess ten breeds before the reveal.",
+    "glyph": "?",
+    "rule": { "type": "guess_correct_count", "gte": 10 }
+  }
+]
