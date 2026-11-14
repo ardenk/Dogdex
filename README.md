@@ -1,2 +1,2 @@
 # Dogdex
-Gotta catch 'em all
+Gotta pet 'em all
