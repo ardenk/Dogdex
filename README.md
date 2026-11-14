@@ -1,5 +1,7 @@
 # Dogdex
 
+_Gotta pet 'em all_
+
 A collection game for the dogs you meet. Log a dog in a couple of taps, learn and practice breed ID, and earn badges. Think Pokédex, but for real dogs around town.
 
 A **React + Vite + TypeScript** app. Everything is stored on your device in IndexedDB first. Optionally, signing in backs it up and syncs it across devices through Supabase (see below).
