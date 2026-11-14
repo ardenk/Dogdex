@@ -235,6 +235,8 @@ textarea.input { min-height: 88px; resize: vertical; }
 
 /* ---------- Silhouette & thumbs ---------- */
 .silhouette { display: block; width: 100%; height: auto; color: currentColor; }
+/* The ear and eye stay ink-dark so they read against the body in both card states. */
+.silhouette__detail { fill: var(--ink); }
 /* 4:3, the same box as the dog page photo, so stickers sit in the same place */
 .thumb {
   position: relative;
@@ -314,6 +316,7 @@ textarea.input { min-height: 88px; resize: vertical; }
   border-radius: var(--radius);
 }
 .breed-card__art { padding: 4px 6px 0; opacity: 0.55; }
+.breed-card:not(.breed-card--logged) .breed-card__art { color: #6b5a52; } /* the Figma "not met" dog: warm gray-brown at 55% */
 .breed-card__no { font-family: var(--font-mono); font-size: 0.68rem; }
 .breed-card__name { font-weight: 700; font-size: 0.8rem; line-height: 1.2; }
 .breed-card--logged {
