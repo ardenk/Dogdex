@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { handle, MAX_IMAGE_CHARS, parseLabels, resetRateLimits } from '../../supabase/functions/identify-breed/logic'
+import { handle, MAX_IMAGE_CHARS, parseVision, resetRateLimits } from '../../supabase/functions/identify-breed/logic'
 import type { Deps } from '../../supabase/functions/identify-breed/logic'
 
 const visionBody = {
@@ -30,9 +30,35 @@ const call = (body: unknown, deps: Partial<Deps> = {}, init: RequestInit = {}) =
 
 beforeEach(() => resetRateLimits())
 
-describe('parseLabels', () => {
+describe('parseVision', () => {
+  it('merges labels and web entities: a breed both agree on outranks one only a single method found', () => {
+    const out = parseVision({
+      responses: [
+        {
+          labelAnnotations: [{ description: 'Bernese Mountain Dog', score: 0.94 }, { description: 'Dog', score: 1 }],
+          // Web scores are not 0 to 1; these are typical values.
+          webDetection: { webEntities: [{ description: 'Australian Shepherd', score: 1.47 }, { description: 'Bernese mountain dog', score: 1.3 }, { description: 'Stock photography', score: 0.7 }] },
+        },
+      ],
+    })
+    expect(out.map((p) => p.breed)).toEqual(['Bernese Mountain Dog', 'Australian Shepherd'])
+    expect(out[0].confidence).toBeGreaterThan(0.95)
+    expect(out[1].confidence).toBeCloseTo(0.735, 2)
+  })
+
+  it('uses web entities alone when the labels name no breed, and never exceeds 1', () => {
+    const out = parseVision({ responses: [{ labelAnnotations: [{ description: 'Dog', score: 1 }], webDetection: { webEntities: [{ description: 'Labrador Retriever', score: 1.9 }, { description: 'Pug', score: 5 }] } }] })
+    expect(out.map((p) => p.breed)).toEqual(['Pug', 'Labrador Retriever'])
+    expect(out[0].confidence).toBe(1)
+  })
+
+  it('keeps at most a dozen predictions', () => {
+    const labelAnnotations = Array.from({ length: 30 }, (_, i) => ({ description: `Breed ${i}`, score: 0.5 }))
+    expect(parseVision({ responses: [{ labelAnnotations }] })).toHaveLength(12)
+  })
+
   it('drops generic labels and malformed entries, best first', () => {
-    expect(parseLabels(visionBody)).toEqual([
+    expect(parseVision(visionBody)).toEqual([
       { breed: 'Golden retriever', confidence: 0.91 },
       { breed: 'Retriever', confidence: 0.77 },
       { breed: 'Labrador Retriever', confidence: 0.6 },
@@ -40,8 +66,8 @@ describe('parseLabels', () => {
   })
 
   it('returns nothing for an empty or unexpected response', () => {
-    expect(parseLabels({})).toEqual([])
-    expect(parseLabels({ responses: [{}] })).toEqual([])
+    expect(parseVision({})).toEqual([])
+    expect(parseVision({ responses: [{}] })).toEqual([])
   })
 })
 
@@ -93,7 +119,7 @@ describe('identify-breed edge function', () => {
     expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('secret-key')
     const sent = JSON.parse(init.body as string)
     expect(sent.requests[0].image.content).toBe(photo)
-    expect(sent.requests[0].features[0].type).toBe('LABEL_DETECTION')
+    expect(sent.requests[0].features.map((f: { type: string }) => f.type)).toEqual(['LABEL_DETECTION', 'WEB_DETECTION'])
   })
 
   it('returns only breed predictions, never Google’s extra fields, and is not cached', async () => {

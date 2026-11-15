@@ -39,11 +39,19 @@ export function resolveBreedId(label: string): string | undefined {
   return orderedBreeds.find((b) => norm(b.id) === n || norm(b.name) === n || b.aliases.some((a) => norm(a) === n))?.id
 }
 
+/**
+ * Below this a suggestion is more likely noise than a breed. On a test with 21 real photos, nearly all of the
+ * wrong picks (obscure breeds suggested for mixed dogs) scored 0.37 to 0.48, while every right pick scored 0.59 or more.
+ * Better to say "no confident suggestion" than to name the wrong breed.
+ */
+export const MIN_CONFIDENCE = 0.5
+
 /** identifyBreed(image) => [{breed, confidence}] — the interface from the brief, with breeds mapped to Dogdex ids. */
 export async function identifyBreed(image: Blob): Promise<Suggestion[]> {
   const raw = await active.identify(image)
   const merged = new Map<string, number>()
   for (const p of raw) {
+    if (p.confidence < MIN_CONFIDENCE) continue
     const breedId = resolveBreedId(p.breed)
     if (breedId) merged.set(breedId, Math.max(merged.get(breedId) ?? 0, p.confidence))
   }

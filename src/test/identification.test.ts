@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { data, entryNumber } from '../data'
 import { parseData } from '../data/schema'
-import { resolveBreedId } from '../services/identify'
+import { getIdentifier, identifyBreed, MIN_CONFIDENCE, resolveBreedId, setIdentifier } from '../services/identify'
 import { parsePredictions } from '../services/identify/cloud'
 import { identifyStatus, identifyStatusMessage } from '../services/identify/status'
 
@@ -50,6 +50,39 @@ describe('mapping Cloud Vision labels to Dogdex breeds', () => {
   it('drops labels that are not a breed we have', () => {
     expect(resolveBreedId('Snout')).toBeUndefined()
     expect(resolveBreedId('Some rare breed nobody listed')).toBeUndefined()
+  })
+})
+
+describe('identifyBreed', () => {
+  const withPredictions = async (predictions: { breed: string; confidence: number }[]) => {
+    const before = getIdentifier()
+    setIdentifier({ id: 'test', label: 'test', identify: async () => predictions })
+    try {
+      return await identifyBreed(new Blob(['x']))
+    } finally {
+      setIdentifier(before)
+    }
+  }
+
+  it('keeps the best three listed breeds, highest confidence first', async () => {
+    const out = await withPredictions([
+      { breed: 'Beagle', confidence: 0.6 },
+      { breed: 'Greyhound', confidence: 0.79 },
+      { breed: 'Carnivores', confidence: 0.97 }, // not a breed: dropped however confident
+      { breed: 'Border Collie', confidence: 0.68 },
+      { breed: 'Pug', confidence: 0.55 },
+    ])
+    expect(out.map((s) => s.breedId)).toEqual(['greyhound', 'border-collie', 'beagle'])
+  })
+
+  it('drops low-confidence guesses instead of naming a doubtful breed', async () => {
+    expect(await withPredictions([{ breed: 'Greyhound', confidence: 0.48 }, { breed: 'Pug', confidence: 0.37 }])).toEqual([])
+    expect(MIN_CONFIDENCE).toBe(0.5)
+  })
+
+  it('merges two labels for the same breed into one suggestion', async () => {
+    const out = await withPredictions([{ breed: 'Labrador Retriever', confidence: 0.6 }, { breed: 'lab', confidence: 0.9 }])
+    expect(out).toEqual([{ breedId: 'labrador-retriever', confidence: 0.9 }])
   })
 })
 

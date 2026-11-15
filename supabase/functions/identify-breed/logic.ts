@@ -58,7 +58,7 @@ const fail = (status: number, error: string, message: string) => json(status, { 
 const GENERIC = new Set([
   'dog', 'dog breed', 'dog breed group', 'dog like mammal', 'dog supply', 'dog clothes', 'dog collar', 'dog harness', 'dog toy',
   'mammal', 'vertebrate', 'canidae', 'carnivore', 'pet', 'puppy', 'companion dog', 'working dog', 'sporting group', 'toy dog',
-  'hound', 'terrier', 'snout', 'fur', 'whiskers', 'nose', 'ear', 'eye', 'paw', 'grass', 'plant', 'tail', 'collar', 'leash',
+  'hound', 'terrier', 'stock photography', 'image', 'photograph', 'cat', 'breed', 'hunting dog', 'guard dog', 'cynology', 'snout', 'fur', 'whiskers', 'nose', 'ear', 'eye', 'paw', 'grass', 'plant', 'tail', 'collar', 'leash',
 ])
 
 export interface Prediction {
@@ -66,22 +66,50 @@ export interface Prediction {
   confidence: number
 }
 
-interface VisionLabel {
+interface VisionEntry {
   description?: unknown
   score?: unknown
 }
 
-/** Pure: turns Cloud Vision's label list into [{breed, confidence}], best first, without the generic labels. */
-export function parseLabels(body: { responses?: { labelAnnotations?: VisionLabel[]; error?: { message?: string } }[] }): Prediction[] {
-  const labels = body.responses?.[0]?.labelAnnotations ?? []
-  const out: Prediction[] = []
-  for (const l of labels) {
-    if (typeof l.description !== 'string' || typeof l.score !== 'number') continue
-    const breed = l.description.trim()
-    if (!breed || GENERIC.has(breed.toLowerCase())) continue
-    out.push({ breed, confidence: Math.round(Math.min(1, Math.max(0, l.score)) * 1000) / 1000 })
+export interface VisionResponse {
+  responses?: {
+    labelAnnotations?: VisionEntry[]
+    webDetection?: { webEntities?: VisionEntry[] }
+    error?: { message?: string }
+  }[]
+}
+
+/** Web entity scores are not 0 to 1 (they ran from about 0.5 to 1.8 on dog photos). Dividing by 2 puts them on the same footing as label scores. */
+const WEB_SCALE = 2
+const MAX_PREDICTIONS = 12
+
+/**
+ * Pure: merges Cloud Vision's two views of a photo into [{breed, confidence}], best first.
+ *  - Label detection reads the pixels. It names a breed less often, but is rarely wrong when it does.
+ *  - Web detection finds matching and similar pictures online. It names a breed far more often.
+ * A breed both agree on gets a higher score than either alone (1 - (1 - a)(1 - b)). Generic labels like "Dog" are dropped.
+ */
+export function parseVision(body: VisionResponse): Prediction[] {
+  const r = body.responses?.[0]
+  const byName = new Map<string, { breed: string; label: number; web: number }>()
+  const add = (entries: VisionEntry[] | undefined, kind: 'label' | 'web') => {
+    for (const e of entries ?? []) {
+      if (typeof e.description !== 'string' || typeof e.score !== 'number') continue
+      const breed = e.description.trim()
+      const key = breed.toLowerCase().replace(/[^a-z0-9]+/g, '')
+      if (!key || GENERIC.has(breed.toLowerCase())) continue
+      const score = Math.min(1, Math.max(0, kind === 'web' ? e.score / WEB_SCALE : e.score))
+      const cur = byName.get(key) ?? { breed, label: 0, web: 0 }
+      cur[kind] = Math.max(cur[kind], score)
+      byName.set(key, cur)
+    }
   }
-  return out.sort((a, b) => b.confidence - a.confidence)
+  add(r?.labelAnnotations, 'label')
+  add(r?.webDetection?.webEntities, 'web')
+  return [...byName.values()]
+    .map((c) => ({ breed: c.breed, confidence: Math.round((1 - (1 - c.label) * (1 - c.web)) * 1000) / 1000 }))
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, MAX_PREDICTIONS)
 }
 
 /** Accepts a bare base64 string, or a data URL (which it unwraps). Returns null for anything that is not base64 JPEG/PNG/WebP data. */
@@ -120,7 +148,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       method: 'POST',
       // The key goes in a header, not the address, so it does not end up in anyone's request logs.
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': deps.apiKey },
-      body: JSON.stringify({ requests: [{ image: { content: image }, features: [{ type: 'LABEL_DETECTION', maxResults: MAX_LABELS }] }] }),
+      body: JSON.stringify({ requests: [{ image: { content: image }, features: [{ type: 'LABEL_DETECTION', maxResults: MAX_LABELS }, { type: 'WEB_DETECTION', maxResults: MAX_LABELS }] }] }),
     })
   } catch {
     return fail(502, 'upstream-unreachable', 'Could not reach the identification service.')
@@ -130,7 +158,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   try {
     const body = await res.json()
     if (body.responses?.[0]?.error) return fail(502, 'upstream-error', 'The identification service could not read that photo.')
-    return json(200, { predictions: parseLabels(body) })
+    return json(200, { predictions: parseVision(body) })
   } catch {
     return fail(502, 'upstream-error', 'The identification service sent a response we could not read.')
   }
