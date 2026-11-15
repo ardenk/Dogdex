@@ -22,6 +22,23 @@ async function drawScaled(bitmap: ImageBitmap, maxDim: number): Promise<HTMLCanv
   return canvas
 }
 
+/** Longest side of the copy sent for breed identification: enough detail for a breed, small and cheap to upload. */
+export const IDENTIFY_MAX_DIM = 800
+
+/** A small JPEG of the photo as base64 text (no data-URL prefix), for the breed identification service. */
+export async function photoForIdentification(file: Blob): Promise<string> {
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+  try {
+    const blob = await toBlob(await drawScaled(bitmap, IDENTIFY_MAX_DIM), 0.8)
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    let binary = ''
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+    return btoa(binary)
+  } finally {
+    bitmap.close()
+  }
+}
+
 /**
  * Shrinks a photo from the camera or library to ~1280px (saves storage space) and makes a 320px thumbnail.
  * Strips EXIF metadata, including any embedded GPS, as a side effect of re-encoding through a canvas.

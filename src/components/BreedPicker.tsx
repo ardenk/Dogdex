@@ -75,15 +75,17 @@ export function BreedPicker({ onSelect, recentBreedIds = [], allowCustom = true,
         </ul>
       ) : (
         <div className="pick-list">
-          {data.groups.map((g) => (
-            <section key={g.id} aria-label={g.name}>
-              <div className="pick-group" aria-hidden="true">
-                {g.name}
-              </div>
-              <ul>
-                {data.breeds
-                  .filter((b) => b.groupId === g.id)
-                  .map((b) => (
+          {data.groups.map((g) => {
+            const inGroup = data.breeds.filter((b) => b.groupId === g.id)
+            return (
+              // Collapsed by default: with a full breed list, one long page would bury the search box and the recent chips.
+              <details key={g.id} className="pick-section">
+                <summary className="pick-group">
+                  <span>{g.name}</span>
+                  <span className="pick-group__count">{inGroup.length}</span>
+                </summary>
+                <ul>
+                  {inGroup.map((b) => (
                     <li key={b.id}>
                       <button type="button" className="pick-item" onClick={() => onSelect({ breedId: b.id })}>
                         <span>{b.name}</span>
@@ -91,9 +93,10 @@ export function BreedPicker({ onSelect, recentBreedIds = [], allowCustom = true,
                       </button>
                     </li>
                   ))}
-              </ul>
-            </section>
-          ))}
+                </ul>
+              </details>
+            )
+          })}
         </div>
       )}
     </div>

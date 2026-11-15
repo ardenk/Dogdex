@@ -1,6 +1,6 @@
 import { orderedBreeds } from '../../data'
 import type { Suggestion } from '../../domain/types'
-import { mockIdentifier } from './mock'
+import { cloudIdentifier } from './cloud'
 
 /** What an identifier returns. `breed` is a free-form label ("Golden Retriever") or one of our breed ids. */
 export interface RawPrediction {
@@ -20,7 +20,8 @@ export interface BreedIdentifier {
   identify(image: Blob): Promise<RawPrediction[]>
 }
 
-let active: BreedIdentifier = mockIdentifier
+/** The real identifier. The random demo one (./mock) is only for tests and development: pass it to setIdentifier. */
+let active: BreedIdentifier = cloudIdentifier
 
 export function setIdentifier(identifier: BreedIdentifier) {
   active = identifier

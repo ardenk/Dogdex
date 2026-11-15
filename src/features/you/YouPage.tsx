@@ -123,6 +123,22 @@ export function YouPage() {
         </p>
       </section>
 
+      <section className="card stack" aria-labelledby="ident-heading">
+        <h2 id="ident-heading">Breed suggestions</h2>
+        <div className="row row--between">
+          <span id="ident-label" className="grow">Suggest breeds from photos</span>
+          <div className="segmented" role="group" aria-labelledby="ident-label">
+            <button type="button" aria-pressed={settings.identifyPhotos} onClick={() => repo.setSetting('identifyPhotos', true)}>On</button>
+            <button type="button" aria-pressed={!settings.identifyPhotos} onClick={() => repo.setSetting('identifyPhotos', false)}>Off</button>
+          </div>
+        </div>
+        <p className="muted small">
+          When this is on and you are signed in, a small copy of a dog photo you add is sent to Google Cloud Vision to suggest a breed. It is not
+          kept there by Dogdex, and the copy has no location data. When it is off, photos never leave your device.
+        </p>
+        {settings.identifyPhotos && !auth.user && <p className="small">Sign in above to use suggestions.</p>}
+      </section>
+
       <section className="card stack" aria-labelledby="data-heading">
         <h2 id="data-heading">Your data</h2>
         <p className="muted small">Everything stays on this device. Browsers can clear site data, so keep a backup.</p>

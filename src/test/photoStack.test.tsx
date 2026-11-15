@@ -59,11 +59,11 @@ describe('Dogdex tiles', () => {
     expect(stack!.querySelectorAll('.photo-stack__item')).toHaveLength(2)
     expect(frenchie.querySelector('svg.silhouette')).toBeNull()
 
-    const beagle = getByRole('link', { name: /Beagle/ })
+    const beagle = getByRole('link', { name: /^Beagle, / }) // exact: the full breed list also has Beagle-Harrier, Kerry Beagle…
     expect(beagle.querySelector('.photo-stack')).toBeNull()
     expect(beagle.querySelector('svg.silhouette')).not.toBeNull()
 
-    const pug = getByRole('link', { name: /Pug/ })
+    const pug = getByRole('link', { name: /^Pug, custom breed/ }) // the typed-in Pug; the real Pug breed is in the list too
     expect(pug.querySelectorAll('.photo-stack__item')).toHaveLength(1)
 
     expect(await axe(container, { rules: { 'color-contrast': { enabled: false } } })).toHaveNoViolations()

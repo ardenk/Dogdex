@@ -25,6 +25,11 @@ export const raritySchema = z.object({
 
 export const breedSchema = z.object({
   id: z.string().min(1),
+  /**
+   * The breed's permanent "No. 001" Dogdex number. Fixed once assigned so adding breeds never renumbers
+   * the ones you already collected. A breed without one gets the next free number (see data/index.ts).
+   */
+  entry: z.number().int().positive().optional(),
   name: z.string().min(1),
   aliases: z.array(z.string()),
   groupId: z.string().min(1),
@@ -88,6 +93,13 @@ export function parseData(raw: {
   unique('group', groups.map((g) => g.id))
   unique('rarity', rarities.map((r) => r.id))
   unique('breed', breeds.map((b) => b.id))
+  const entries = new Map<number, string>()
+  for (const b of breeds) {
+    if (b.entry === undefined) continue
+    const other = entries.get(b.entry)
+    if (other) errors.push(`Breeds "${other}" and "${b.id}" share entry number ${b.entry}`)
+    entries.set(b.entry, b.id)
+  }
   unique('badge', badges.map((b) => b.id))
 
   const groupIds = new Set(groups.map((g) => g.id))

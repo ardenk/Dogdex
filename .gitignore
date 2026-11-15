@@ -28,3 +28,6 @@ dist-ssr
 
 # Local tooling for this machine (contains absolute paths)
 .claude/
+
+# Photos used to test breed identification (not part of the app)
+test-photos/

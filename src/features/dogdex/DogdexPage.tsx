@@ -3,14 +3,34 @@ import { Link } from 'react-router'
 import { PhotoStack } from '../../components/PhotoStack'
 import { RarityMark } from '../../components/RarityMark'
 import { Silhouette } from '../../components/Silhouette'
-import { breedsInGroup, data, entryNumber, groupsById } from '../../data'
+import { breedsById, breedsInGroup, data, entryNumber, groupsById } from '../../data'
 import { entryLabel } from '../../domain/format'
+import { customBreedsNowListed } from '../../domain/customBreeds'
 import { stackPhotoIds } from '../../domain/photos'
+import { resolveBreedId } from '../../services/identify'
 import { useData } from '../../storage/data-context'
+import { repo } from '../../storage/localRepo'
+import { useToast } from '../../components/toast-context'
 
 export function DogdexPage() {
   const { snapshot } = useData()
+  const toast = useToast()
   const [filter, setFilter] = useState<'all' | 'logged'>('all')
+  const [dismissed, setDismissed] = useState<string[]>([])
+
+  /** Typed-in breeds that are now real entries: offered a one-tap move, never moved automatically. */
+  const nowListed = useMemo(
+    () => customBreedsNowListed(snapshot.dogs, resolveBreedId).filter((n) => !dismissed.includes(n.label)),
+    [snapshot.dogs, dismissed],
+  )
+  const moveToListed = async (n: (typeof nowListed)[number]) => {
+    try {
+      for (const id of n.dogIds) await repo.updateDogBreed(id, { breedId: n.breedId })
+      toast(`Moved ${n.dogIds.length === 1 ? '1 dog' : `${n.dogIds.length} dogs`} to ${breedsById[n.breedId].name}`)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not move those dogs.')
+    }
+  }
 
   const dogCount = useMemo(() => {
     const m = new Map<string, number>()
@@ -62,6 +82,23 @@ export function DogdexPage() {
         </div>
       </header>
 
+      {nowListed.map((n) => (
+        <section key={n.label} className="card stack" aria-label={`${n.label} is now listed`}>
+          <p>
+            <strong>{n.label}</strong> {n.label.toLowerCase() === breedsById[n.breedId].name.toLowerCase() ? 'is now a listed breed' : `is now in the Dogdex as ${breedsById[n.breedId].name}`}. Move{' '}
+            {n.dogIds.length === 1 ? 'your dog' : `your ${n.dogIds.length} dogs`} there so {n.dogIds.length === 1 ? 'it counts' : 'they count'} toward your collection?
+          </p>
+          <div className="row">
+            <button type="button" className="btn btn--small" onClick={() => moveToListed(n)}>
+              Move
+            </button>
+            <button type="button" className="btn btn--small btn--ghost" onClick={() => setDismissed((d) => [...d, n.label])}>
+              Not now
+            </button>
+          </div>
+        </section>
+      ))}
+
       {data.groups.map((group) => {
         const breeds = breedsInGroup(group.id)
         const metCount = breeds.filter((b) => dogCount.has(b.id)).length
@@ -69,14 +106,15 @@ export function DogdexPage() {
         const extra = customIn(group.id)
         if (shown.length === 0 && extra.length === 0) return null
         return (
-          <section key={group.id} aria-labelledby={`group-${group.id}`}>
-            <div className="group-head">
+          // Groups with a breed you've met (and the "Met" filter) start open; the rest start folded so a long list stays scannable.
+          <details key={group.id} className="group" open={metCount > 0 || extra.length > 0 || filter === 'logged'}>
+            <summary className="group-head">
               <h2 id={`group-${group.id}`}>{group.name}</h2>
               <span className="mono small" aria-label={`${metCount} of ${breeds.length} met`}>
                 {metCount}/{breeds.length}
                 {metCount === breeds.length && group.id !== 'mixed' ? ' ✓' : ''}
               </span>
-            </div>
+            </summary>
             <ul className="breed-grid">
               {shown.map((b) => {
                 const n = dogCount.get(b.id) ?? 0
@@ -116,7 +154,7 @@ export function DogdexPage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </details>
         )
       })}
 

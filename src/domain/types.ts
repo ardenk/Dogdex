@@ -117,9 +117,12 @@ export interface Snapshot {
 export interface Settings {
   weeklyGoal: number
   locationMode: 'auto' | 'off'
+  /** May a dog photo be sent to a cloud service to suggest its breed? Off until the user turns it on. */
+  identifyPhotos: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   weeklyGoal: 5,
   locationMode: 'auto',
+  identifyPhotos: false,
 }

@@ -17,8 +17,14 @@ export const breedsById: Record<string, Breed> = Object.fromEntries(data.breeds.
 /** Breeds in Dogdex order (group order, then file order). */
 export const orderedBreeds: Breed[] = data.groups.flatMap((g) => data.breeds.filter((b) => b.groupId === g.id))
 
-/** "No. 001"-style entry numbers. */
-export const entryNumber: Record<string, number> = Object.fromEntries(orderedBreeds.map((b, i) => [b.id, i + 1]))
+/**
+ * "No. 001"-style entry numbers. A breed keeps the `entry` written in breeds.json; any breed without one is
+ * numbered after the highest existing number, in Dogdex order, so existing numbers never move.
+ */
+export const entryNumber: Record<string, number> = (() => {
+  let next = Math.max(0, ...data.breeds.map((b) => b.entry ?? 0)) + 1
+  return Object.fromEntries(orderedBreeds.map((b) => [b.id, b.entry ?? next++]))
+})()
 
 export function breedsInGroup(groupId: string): Breed[] {
   return data.breeds.filter((b) => b.groupId === groupId)

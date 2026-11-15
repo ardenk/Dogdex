@@ -10,7 +10,11 @@ import { breedsById, raritiesById } from '../../data'
 import type { BadgeDef } from '../../data'
 import { fromLocalInput, toLocalInput } from '../../domain/format'
 import type { Suggestion } from '../../domain/types'
+import { cloudEnabled } from '../../sync/client'
+import { useAuth } from '../../sync/auth-context'
 import { getIdentifier, identifyBreed } from '../../services/identify'
+import { identifyStatus, identifyStatusMessage } from '../../services/identify/status'
+import type { IdentifyStatus } from '../../services/identify/status'
 import { processImage } from '../../services/images/resize'
 import type { ProcessedImage } from '../../services/images/resize'
 import { getCoarseLocation } from '../../services/location'
@@ -43,6 +47,7 @@ export function LogPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const { settings } = useData()
+  const auth = useAuth()
   const recent = useRecentBreeds()
   const [params] = useSearchParams()
 
@@ -51,6 +56,10 @@ export function LogPage() {
   const [photoBusy, setPhotoBusy] = useState(false)
   const [guess, setGuess] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null)
+  /** Why there are no suggestions (off, offline, an error), shown instead of the list. */
+  const [suggestNote, setSuggestNote] = useState<{ text: string; status: IdentifyStatus } | null>(null)
+  /** Which identifier produced the suggestions; 'none' when the photo was not sent anywhere. Saved with the guess. */
+  const [identifierId, setIdentifierId] = useState('none')
   const [showOtherPicker, setShowOtherPicker] = useState(false)
 
   const preselected = params.get('breed')
@@ -124,11 +133,25 @@ export function LogPage() {
       setGuess(guessed)
       setStage('reveal')
       setSuggestions(null)
+      setSuggestNote(null)
+      // The photo only leaves the device when the user has opted in, is signed in, and is online.
+      const status = identifyStatus({ cloudEnabled, signedIn: !!auth.user, optedIn: settings.identifyPhotos, online: navigator.onLine })
+      const why = identifyStatusMessage(status)
+      if (why) {
+        setIdentifierId('none')
+        setSuggestions([])
+        setSuggestNote({ text: why, status })
+        return
+      }
+      setIdentifierId(getIdentifier().id)
       identifyBreed(photo.processed.blob)
         .then(setSuggestions)
-        .catch(() => setSuggestions([]))
+        .catch((e: unknown) => {
+          setSuggestions([])
+          setSuggestNote({ text: e instanceof Error ? e.message : 'Could not get suggestions. Pick the breed below.', status })
+        })
     },
-    [photo],
+    [photo, auth.user, settings.identifyPhotos],
   )
 
   const removePhoto = () => {
@@ -143,7 +166,6 @@ export function LogPage() {
     if (!selected || saving) return
     setSaving(true)
     try {
-      const identifierId = getIdentifier().id
       const result = await repo.logSighting({
         breedId: selected.breedId ?? null,
         customBreedLabel: selected.customLabel,
@@ -283,7 +305,17 @@ export function LogPage() {
               </p>
             )}
             {suggestions === null && <p className="muted" aria-live="polite">Looking…</p>}
-            {suggestions && suggestions.length === 0 && <p className="muted">No suggestions. Pick the breed below.</p>}
+            {suggestions && suggestions.length === 0 && (
+              <p className="muted" role="status">
+                {suggestNote?.text ?? 'No confident suggestions for this photo. Pick the breed below.'}
+                {(suggestNote?.status === 'off' || suggestNote?.status === 'sign-in') && (
+                  <>
+                    {' '}
+                    <Link to="/you">Open You</Link>
+                  </>
+                )}
+              </p>
+            )}
             {suggestions?.map((s) => {
               const b = breedsById[s.breedId]
               const on = selected?.breedId === s.breedId
@@ -300,7 +332,7 @@ export function LogPage() {
                 </button>
               )
             })}
-            <p className="muted small">{getIdentifier().label}</p>
+            {identifierId !== 'none' && <p className="muted small">{getIdentifier().label}</p>}
             {guessBreed && !suggestions?.some((s) => s.breedId === guessBreed.id) && (
               <button
                 type="button"
