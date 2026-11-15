@@ -79,6 +79,30 @@ describe('local repository', () => {
     await repo.setSetting('quizStats', { rounds: -3, answered: 'lots' } as never)
     expect((await repo.getSettings()).quizStats).toEqual({ rounds: 0, answered: 0, correct: 0, best: 0 })
   })
+  it('sets where the dog is in a photo, keeps it inside the photo, and marks the photo as changed', async () => {
+    const dbX = createDb(`focus-${n++}`)
+    const r = createLocalRepo(dbX)
+    await r.logSighting({ breedId: 'beagle', metAt: 1, photo })
+    const id = (await r.getSnapshot()).dogs[0].primaryPhotoId!
+    const before = (await dbX.photos.get(id))!
+    expect(before.focusX).toBeUndefined()
+    await new Promise((res) => setTimeout(res, 3))
+    await r.setPhotoFocus(id, { x: 0.25, y: 4 }) // y is out of range
+    const after = (await dbX.photos.get(id))!
+    expect(after).toMatchObject({ focusX: 0.25, focusY: 1 })
+    expect(after.updatedAt).toBeGreaterThan(before.updatedAt) // so sync notices
+    expect(after.blob).toEqual(before.blob) // the image itself is untouched
+    expect(after.thumb).toEqual(before.thumb)
+  })
+  it('will not frame a photo that is gone or never existed', async () => {
+    const dbX = createDb(`focus-gone-${n++}`)
+    const r = createLocalRepo(dbX)
+    await r.logSighting({ breedId: 'beagle', metAt: 1, photo })
+    const id = (await r.getSnapshot()).dogs[0].primaryPhotoId!
+    await expect(r.setPhotoFocus('nope', { x: 0.5, y: 0.5 })).rejects.toThrow('Photo not found')
+    await r.deletePhoto(id)
+    await expect(r.setPhotoFocus(id, { x: 0.5, y: 0.5 })).rejects.toThrow('Photo not found')
+  })
   it('never stores raw coordinates, only the rounded cell', async () => {
     await repo.logSighting({ breedId: 'beagle', metAt: 1, placeLabel: 'Tribeca', geoCell: '40.72,-74.01' })
     const e = (await repo.getSnapshot()).encounters[0]

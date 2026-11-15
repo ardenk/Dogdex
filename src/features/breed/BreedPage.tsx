@@ -9,7 +9,7 @@ import { breedsById, entryNumber, groupsById } from '../../data'
 import { entryLabel } from '../../domain/format'
 import { useData } from '../../storage/data-context'
 import { repo } from '../../storage/localRepo'
-import { usePhotoUrl } from '../../storage/usePhotoUrl'
+import { usePhoto } from '../../storage/usePhotoUrl'
 
 export function BreedPage() {
   const { breedId = '' } = useParams()
@@ -23,7 +23,7 @@ export function BreedPage() {
 
   const dogs = snapshot.dogs.filter((d) => d.breedId === breedId).sort((a, b) => b.lastMetAt - a.lastMetAt)
   const encounterCount = (dogId: string) => snapshot.encounters.filter((e) => e.dogId === dogId).length
-  const heroUrl = usePhotoUrl(dogs.find((d) => d.primaryPhotoId)?.primaryPhotoId, 'full')
+  const { url: heroUrl, style: heroCrop } = usePhoto(dogs.find((d) => d.primaryPhotoId)?.primaryPhotoId, 'full')
 
   if (!breed) {
     return (
@@ -42,7 +42,7 @@ export function BreedPage() {
       </Link>
 
       <div className="hero" style={dogs.length ? undefined : { background: 'transparent', borderStyle: 'dashed', boxShadow: 'none' }}>
-        {heroUrl ? <img src={heroUrl} alt={`A ${breed.name} you met`} /> : <Silhouette variant={breed.groupId} />}
+        {heroUrl ? <img src={heroUrl} alt={`A ${breed.name} you met`} style={heroCrop} /> : <Silhouette variant={breed.groupId} />}
       </div>
 
       <header className="stack">

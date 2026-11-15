@@ -1,3 +1,4 @@
+import { focusOf } from '../../domain/photoFocus'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
@@ -22,6 +23,7 @@ export function SharePage() {
   const breed = dog?.breedId ? breedsById[dog.breedId] : undefined
   const place = encounters.find((e) => e.placeLabel)?.placeLabel
   const photoBlob = photo?.blob
+  const { x: focusX, y: focusY } = focusOf(photo)
   const photoPending = !!dog?.primaryPhotoId && photo === undefined
 
   useEffect(() => {
@@ -38,6 +40,7 @@ export function SharePage() {
       rarityId: tier?.id ?? 'common',
       entryLabel: breed ? entryLabel(entryNumber[breed.id]) : 'Dogdex',
       photo: photoBlob,
+      photoFocus: { x: focusX, y: focusY },
       metAt: dog.lastMetAt,
       place: includePlace ? place : undefined,
     })
@@ -52,7 +55,7 @@ export function SharePage() {
       cancelled = true
       if (url) URL.revokeObjectURL(url)
     }
-  }, [dog, breed, photoBlob, photoPending, includePlace, place])
+  }, [dog, breed, photoBlob, photoPending, includePlace, place, focusX, focusY])
 
   if (!dog) {
     return (

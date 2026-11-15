@@ -3,11 +3,12 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { AuthContext } from '../sync/auth-context'
 import type { AuthValue } from '../sync/auth-context'
 import { axe } from 'vitest-axe'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { StickerLayer } from '../components/StickerLayer'
 import { DogPage } from '../features/dog/DogPage'
 import { DEFAULT_SETTINGS } from '../domain/types'
 import { DataContext } from '../storage/data-context'
+import { repo } from '../storage/localRepo'
 import type { Sticker } from '../domain/types'
 
 vi.mock('../services/giphy', async () => {
@@ -101,30 +102,38 @@ describe('StickerLayer', () => {
 })
 
 describe('DogPage with stickers', () => {
-  const dog = { id: 'd', breedId: 'beagle', name: 'Biscuit', firstMetAt: 1, lastMetAt: 1, createdAt: 1, updatedAt: 1 }
-  const view = () =>
-    render(
-      <MemoryRouter initialEntries={['/dog/d']}>
-        <DataContext.Provider
-          value={{ snapshot: { dogs: [dog], encounters: [], guesses: [], awards: [], stickers: [stickers[0]] }, settings: DEFAULT_SETTINGS }}
-        >
+  // The dog needs a photo: stickers live on a photo, and the Edit button is on the photo.
+  const view = async () => {
+    await repo.clearAll()
+    const { dog } = await repo.logSighting({ breedId: 'beagle', name: 'Biscuit', metAt: 1, photo: { blob: new Blob(['a']), thumb: new Blob(['a']), width: 4, height: 3 } })
+    const photoId = (await repo.getSnapshot()).dogs.find((d) => d.id === dog.id)!.primaryPhotoId!
+    const placed = await repo.addSticker(dog.id, { photoId, giphyId: 'a', title: 'Happy dog', url: 'https://media1.giphy.com/media/a/200w.webp', width: 200, height: 160 })
+    const snapshot = await repo.getSnapshot()
+    expect(placed.photoId).toBe(photoId)
+    return render(
+      <MemoryRouter initialEntries={[`/dog/${dog.id}`]}>
+        <DataContext.Provider value={{ snapshot, settings: DEFAULT_SETTINGS }}>
           <Routes>
             <Route path="/dog/:dogId" element={<DogPage />} />
           </Routes>
         </DataContext.Provider>
       </MemoryRouter>,
     )
+  }
+  beforeEach(() => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:test', revokeObjectURL: () => {} }))
+  })
 
   it('renders a dog that has stickers, with no a11y violations (regression: it used to crash)', async () => {
-    const { container } = view()
+    const { container } = await view()
     expect(screen.getByRole('heading', { name: 'Biscuit' })).toBeInTheDocument()
     expect(container.querySelector('.sticker img')).toHaveAttribute('alt', 'Happy dog')
     await noViolations(container)
   })
 
-  it('opens the decorate panel and lets you pick the sticker and see its controls', async () => {
-    const { container } = view()
-    fireEvent.click(screen.getByRole('button', { name: /^Stickers/ }))
+  it('opens the edit controls and lets you pick the sticker and see its controls', async () => {
+    const { container } = await view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit photo' }))
     expect(screen.getByRole('button', { name: 'Add a sticker' })).toBeInTheDocument()
     fireEvent.keyDown(screen.getByRole('button', { name: /Happy dog/ }), { key: 'Enter' })
     expect(await screen.findByLabelText('Size')).toBeInTheDocument()

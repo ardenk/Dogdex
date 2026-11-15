@@ -1,10 +1,10 @@
-import { usePhotoUrl } from '../storage/usePhotoUrl'
+import { usePhoto } from '../storage/usePhotoUrl'
 
 function StackPhoto({ photoId, depth }: { photoId: string; depth: number }) {
-  const url = usePhotoUrl(photoId, 'thumb')
+  const { url, style: crop } = usePhoto(photoId, 'thumb')
   const cls = `photo-stack__item photo-stack__item--${depth}`
   // While the thumbnail loads, show a quiet placeholder so the stack doesn't jump.
-  return url ? <img className={cls} src={url} alt="" style={{ zIndex: 3 - depth }} /> : <span className={cls} style={{ zIndex: 3 - depth }} />
+  return url ? <img className={cls} src={url} alt="" style={{ ...crop, zIndex: 3 - depth }} /> : <span className={cls} style={{ zIndex: 3 - depth }} />
 }
 
 /**

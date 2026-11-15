@@ -8,6 +8,8 @@ export interface PhotoInput {
 }
 
 export interface StickerInput {
+  /** The photo to put the sticker on. */
+  photoId: string
   giphyId: string
   title?: string
   url: string
@@ -61,16 +63,28 @@ export interface Repository {
   addDogPhoto(dogId: string, photo: PhotoInput): Promise<Photo>
   /** Chooses which of the dog's photos is its cover: shown on tiles, lists and share cards, and the home of its stickers. */
   setPrimaryPhoto(dogId: string, photoId: string): Promise<void>
+  /** Sets where the dog is in a photo, so crops keep it in view (fractions 0–1 of the photo's width and height). Syncs like any photo change. */
+  setPhotoFocus(photoId: string, focus: { x: number; y: number }): Promise<void>
   /** Deletes a photo's image data (a small record stays so the deletion can sync). If it was the cover, the next photo takes over. */
   deletePhoto(photoId: string): Promise<void>
   /** Changes which breed a dog is, to a listed breed or a custom one (optionally filed under a category). */
   updateDogBreed(dogId: string, breed: { breedId: string | null; customBreedLabel?: string; customGroupId?: string }): Promise<void>
   /** Renames a custom breed and/or files it under a group, for every dog logged with it. Returns how many dogs changed. */
   updateCustomBreed(currentLabel: string, next: { label: string; groupId?: string }): Promise<number>
-  /** Adds a sticker at the center of the dog's photo box. Throws past MAX_STICKERS_PER_DOG or for non-GIPHY URLs. */
+  /** Adds a sticker at the center of a photo. Throws for a photo that isn't this dog's, past MAX_STICKERS_PER_PHOTO, or for non-GIPHY URLs. */
   addSticker(dogId: string, input: StickerInput): Promise<Sticker>
   updateSticker(id: string, patch: StickerPatch): Promise<void>
   removeSticker(id: string): Promise<void>
+  /**
+   * Puts a dog's stickers back exactly as `stickers` has them: edits are undone, stickers added since are removed,
+   * and stickers removed since come back. Used by Cancel on the sticker controls.
+   */
+  restoreStickers(dogId: string, stickers: Sticker[]): Promise<void>
+  /**
+   * Attaches stickers that predate "a sticker belongs to one photo" to their dog's cover photo (the photo they were showing on).
+   * Safe to repeat; returns how many it attached.
+   */
+  attachLooseStickers(): Promise<number>
   deleteDog(id: string): Promise<void>
   awardBadges(badgeIds: string[]): Promise<void>
   getSettings(): Promise<Settings>

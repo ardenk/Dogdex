@@ -1,7 +1,8 @@
 import { isGuessCorrect } from '../domain/guess'
 import { newId } from '../domain/id'
+import { clampFocus } from '../domain/photoFocus'
 import { readQuizStats } from '../domain/quiz'
-import { DEFAULT_SETTINGS, MAX_PHOTOS_PER_DOG, MAX_STICKERS_PER_DOG } from '../domain/types'
+import { DEFAULT_SETTINGS, MAX_PHOTOS_PER_DOG, MAX_STICKERS_PER_PHOTO } from '../domain/types'
 import type { Dog, Encounter, Guess, Photo, Settings, Snapshot, Sticker } from '../domain/types'
 import { isGiphyUrl } from '../services/giphy/validate'
 import { createDb, db as defaultDb } from './db'
@@ -134,7 +135,7 @@ export function createLocalRepo(db: DogdexDB = defaultDb): Repository {
 
     async addDogPhoto(dogId: string, input: PhotoInput): Promise<Photo> {
       const now = Date.now()
-      return db.transaction('rw', [db.dogs, db.photos], async () => {
+      return db.transaction('rw', [db.dogs, db.photos, db.stickers], async () => {
         const dog = await db.dogs.get(dogId)
         if (!dog || dog.deletedAt) throw new Error('Dog not found')
         const live = (await db.photos.where('dogId').equals(dogId).toArray()).filter((p) => !p.deletedAt)
@@ -143,6 +144,12 @@ export function createLocalRepo(db: DogdexDB = defaultDb): Repository {
         const createdAt = Math.max(now, ...(await db.photos.where('dogId').equals(dogId).toArray()).map((p) => p.createdAt + 1))
         const photo: Photo = { id: newId(), dogId, ...input, createdAt, updatedAt: now }
         await db.photos.add(photo)
+        // Stickers that had no photo to sit on (from before dogs needed one) go onto the dog's first photo.
+        if (live.length === 0) {
+          for (const s of (await db.stickers.where('dogId').equals(dogId).toArray()).filter((x) => !x.deletedAt && !x.photoId)) {
+            await db.stickers.update(s.id, { photoId: photo.id, updatedAt: now })
+          }
+        }
         const hasCover = !!dog.primaryPhotoId && live.some((p) => p.id === dog.primaryPhotoId)
         await db.dogs.update(dogId, { ...(hasCover ? {} : { primaryPhotoId: photo.id }), updatedAt: now })
         return photo
@@ -157,11 +164,25 @@ export function createLocalRepo(db: DogdexDB = defaultDb): Repository {
       })
     },
 
+    async setPhotoFocus(photoId: string, focus: { x: number; y: number }) {
+      const { x, y } = clampFocus(focus)
+      await db.transaction('rw', db.photos, async () => {
+        const photo = await db.photos.get(photoId)
+        if (!photo || photo.deletedAt) throw new Error('Photo not found')
+        // updatedAt moves so the change is picked up by sync; the image bytes themselves are unchanged.
+        await db.photos.update(photoId, { focusX: x, focusY: y, updatedAt: Date.now() })
+      })
+    },
+
     async deletePhoto(photoId: string) {
       const now = Date.now()
-      await db.transaction('rw', [db.dogs, db.photos], async () => {
+      await db.transaction('rw', [db.dogs, db.photos, db.stickers], async () => {
         const photo = await db.photos.get(photoId)
         if (!photo || photo.deletedAt) return
+        // Its stickers go with it.
+        for (const s of (await db.stickers.where('dogId').equals(photo.dogId).toArray()).filter((x) => !x.deletedAt && x.photoId === photoId)) {
+          await db.stickers.update(s.id, { deletedAt: now, updatedAt: now })
+        }
         // Free the storage now; the small record remains as a tombstone so the deletion can sync to other devices.
         const empty = new Blob([])
         await db.photos.update(photoId, { deletedAt: now, updatedAt: now, blob: empty, thumb: empty })
@@ -199,14 +220,17 @@ export function createLocalRepo(db: DogdexDB = defaultDb): Repository {
     async addSticker(dogId: string, input: StickerInput): Promise<Sticker> {
       if (!isGiphyUrl(input.url) || (input.stillUrl && !isGiphyUrl(input.stillUrl))) throw new Error('That sticker is not from GIPHY')
       const now = Date.now()
-      return db.transaction('rw', [db.dogs, db.stickers], async () => {
+      return db.transaction('rw', [db.dogs, db.photos, db.stickers], async () => {
         const dog = await db.dogs.get(dogId)
         if (!dog || dog.deletedAt) throw new Error('Dog not found')
-        const existing = (await db.stickers.where('dogId').equals(dogId).toArray()).filter((s) => !s.deletedAt)
-        if (existing.length >= MAX_STICKERS_PER_DOG) throw new Error(`A dog can have up to ${MAX_STICKERS_PER_DOG} stickers`)
+        const photo = await db.photos.get(input.photoId)
+        if (!photo || photo.dogId !== dogId || photo.deletedAt) throw new Error('Photo not found')
+        const existing = (await db.stickers.where('dogId').equals(dogId).toArray()).filter((s) => !s.deletedAt && s.photoId === input.photoId)
+        if (existing.length >= MAX_STICKERS_PER_PHOTO) throw new Error(`A photo can have up to ${MAX_STICKERS_PER_PHOTO} stickers`)
         const sticker: Sticker = {
           id: newId(),
           dogId,
+          photoId: input.photoId,
           giphyId: input.giphyId,
           title: clean(input.title),
           url: input.url,
@@ -241,6 +265,42 @@ export function createLocalRepo(db: DogdexDB = defaultDb): Repository {
           next.z = siblings.reduce((m, o) => Math.max(m, o.z), 0) + 1
         }
         await db.stickers.update(id, next)
+      })
+    },
+
+    async restoreStickers(dogId: string, stickers: Sticker[]) {
+      const now = Date.now()
+      await db.transaction('rw', db.stickers, async () => {
+        const wanted = new Map(stickers.filter((s) => s.dogId === dogId).map((s) => [s.id, s]))
+        for (const current of await db.stickers.where('dogId').equals(dogId).toArray()) {
+          const want = wanted.get(current.id)
+          wanted.delete(current.id)
+          if (!want) {
+            if (!current.deletedAt) await db.stickers.update(current.id, { deletedAt: now, updatedAt: now }) // added since: remove
+            continue
+          }
+          const unchanged = !current.deletedAt && current.x === want.x && current.y === want.y && current.scale === want.scale && current.rotation === want.rotation && current.z === want.z
+          if (!unchanged) await db.stickers.put({ ...want, deletedAt: undefined, updatedAt: now }) // edited or removed since: restore
+        }
+        for (const want of wanted.values()) await db.stickers.put({ ...want, deletedAt: undefined, updatedAt: now })
+      })
+    },
+
+    async attachLooseStickers() {
+      const now = Date.now()
+      return db.transaction('rw', [db.dogs, db.photos, db.stickers], async () => {
+        const loose = (await db.stickers.toArray()).filter((s) => !s.deletedAt && !s.photoId)
+        let attached = 0
+        for (const s of loose) {
+          const dog = await db.dogs.get(s.dogId)
+          if (!dog || dog.deletedAt) continue
+          const photos = (await db.photos.where('dogId').equals(s.dogId).toArray()).filter((p) => !p.deletedAt).sort((a, b) => a.createdAt - b.createdAt)
+          const target = photos.find((p) => p.id === dog.primaryPhotoId) ?? photos[0]
+          if (!target) continue // no photo yet: it waits, and goes onto the dog's first one
+          await db.stickers.update(s.id, { photoId: target.id, updatedAt: now })
+          attached++
+        }
+        return attached
       })
     },
 

@@ -189,6 +189,8 @@ async function pushPhotos(db: DogdexDB, store: RemoteStore, userId: string): Pro
       ...paths,
       width: p.width,
       height: p.height,
+      focus_x: p.focusX ?? null,
+      focus_y: p.focusY ?? null,
       created_at: toIso(p.createdAt),
       updated_at: toIso(p.updatedAt),
       deleted_at: p.deletedAt ? toIso(p.deletedAt) : null,
@@ -233,12 +235,17 @@ async function pullPhotos(db: DogdexDB, store: RemoteStore): Promise<number> {
       const existing = await db.photos.get(r.id)
       const remoteMs = toMs(r.updated_at)
       if (!existing || remoteMs > existing.updatedAt) {
+        const focus = r.focus_x != null && r.focus_y != null ? { focusX: r.focus_x, focusY: r.focus_y } : {}
         if (r.deleted_at) {
           await db.photos.delete(r.id)
+        } else if (existing && !existing.deletedAt) {
+          // Only the framing (or similar) changed: keep the image bytes we already have instead of downloading them again.
+          await db.photos.put({ ...existing, focusX: undefined, focusY: undefined, ...focus, width: r.width, height: r.height, updatedAt: remoteMs })
+          applied++
         } else {
           // If a download fails we throw before moving the cursor, so the next sync retries this photo.
           const [blob, thumb] = await Promise.all([store.downloadPhoto(r.storage_path), store.downloadPhoto(r.thumb_path)])
-          const photo: Photo = { id: r.id, userId: r.user_id, dogId: r.dog_id, blob, thumb, width: r.width, height: r.height, createdAt: toMs(r.created_at), updatedAt: remoteMs }
+          const photo: Photo = { id: r.id, userId: r.user_id, dogId: r.dog_id, blob, thumb, width: r.width, height: r.height, ...focus, createdAt: toMs(r.created_at), updatedAt: remoteMs }
           await db.photos.put(photo)
           applied++
         }

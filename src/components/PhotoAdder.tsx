@@ -3,26 +3,23 @@ import { MAX_PHOTOS_PER_DOG } from '../domain/types'
 import type { Dog } from '../domain/types'
 import { processImage } from '../services/images/resize'
 import { repo } from '../storage/localRepo'
-import { useAuth } from '../sync/auth-context'
 import { useToast } from './toast-context'
 
 interface Props {
   dog: Dog
-  photoIds: string[]
-  /** The photo currently shown in the photo box (the one Make cover and Delete act on). */
-  shownId: string | undefined
-  onChoose: (id: string | null) => void
+  photoCount: number
+  /** Called with the last photo added, so it can be shown. The frame is closed by the caller. */
+  onAdded: (photoId: string) => void
+  onClose: () => void
 }
 
-/** Add photos (camera or library, several at once), choose the cover, and delete the photo being shown. */
-export function PhotoManager({ dog, photoIds, shownId, onChoose }: Props) {
+/** Upload options only: take a photo with the camera, or choose several from the library. Editing a photo is a separate step. */
+export function PhotoAdder({ dog, photoCount, onAdded, onClose }: Props) {
   const toast = useToast()
-  const { user } = useAuth()
   const camera = useRef<HTMLInputElement>(null)
   const library = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
-  const full = photoIds.length >= MAX_PHOTOS_PER_DOG
-  const isCover = !!shownId && shownId === dog.primaryPhotoId
+  const full = photoCount >= MAX_PHOTOS_PER_DOG
 
   const add = async (list: FileList | null) => {
     const files = list ? Array.from(list) : [] // copy first: clearing the input empties the live FileList
@@ -48,35 +45,16 @@ export function PhotoManager({ dog, photoIds, shownId, onChoose }: Props) {
     } finally {
       setBusy(false)
     }
-    if (last) onChoose(last)
     if (added) toast(added === 1 ? 'Photo added' : `${added} photos added`)
-  }
-
-  const makeCover = async () => {
-    if (!shownId) return
-    try {
-      await repo.setPrimaryPhoto(dog.id, shownId)
-      toast('Cover photo changed')
-    } catch {
-      toast('Could not change the cover photo.')
-    }
-  }
-
-  const remove = async () => {
-    if (!shownId) return
-    const where = user ? 'from this device and from your cloud backup' : 'from this device'
-    if (!window.confirm(`Delete this photo? It will be removed ${where}. This can't be undone.`)) return
-    await repo.deletePhoto(shownId)
-    onChoose(null)
-    toast('Photo deleted')
+    if (last) onAdded(last)
   }
 
   return (
-    <section className="card stack" aria-labelledby="photos-heading">
+    <section className="card stack" aria-labelledby="add-photo-heading">
       <div className="row row--between">
-        <h2 id="photos-heading">Photos</h2>
+        <h2 id="add-photo-heading">Add a photo</h2>
         <span className="mono small">
-          {photoIds.length}/{MAX_PHOTOS_PER_DOG}
+          {photoCount}/{MAX_PHOTOS_PER_DOG}
         </span>
       </div>
 
@@ -92,23 +70,9 @@ export function PhotoManager({ dog, photoIds, shownId, onChoose }: Props) {
         </button>
       </div>
       {full && <p className="muted small">That’s the most photos one dog can have. Delete one to add another.</p>}
-
-      {photoIds.length > 0 ? (
-        <>
-          <p className="muted small">Tap a photo above to select it, then:</p>
-          <div className="row">
-            <button type="button" className="btn grow" onClick={makeCover} disabled={!shownId || isCover}>
-              {isCover ? '★ Cover photo' : 'Make cover'}
-            </button>
-            <button type="button" className="btn btn--danger grow" onClick={remove} disabled={!shownId}>
-              Delete photo
-            </button>
-          </div>
-          <p className="muted small">The cover photo is the one shown on the Dogdex, in lists and on share cards. Stickers sit on it.</p>
-        </>
-      ) : (
-        <p className="muted small">No photos yet. Add one to see it here and on the Dogdex.</p>
-      )}
+      <button type="button" className="btn btn--block" onClick={onClose}>
+        Cancel
+      </button>
     </section>
   )
 }

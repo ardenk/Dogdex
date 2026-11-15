@@ -4,7 +4,8 @@ import { BreedPicker } from '../../components/BreedPicker'
 import type { BreedSelection } from '../../components/BreedPicker'
 import { Celebration } from '../../components/Celebration'
 import { GroupSelect } from '../../components/GroupSelect'
-import { PhotoManager } from '../../components/PhotoManager'
+import { PhotoAdder } from '../../components/PhotoAdder'
+import { PhotoEditor } from '../../components/PhotoEditor'
 import { PhotoStrip } from '../../components/PhotoStrip'
 import { RarityMark } from '../../components/RarityMark'
 import { Silhouette } from '../../components/Silhouette'
@@ -14,14 +15,15 @@ import { useToast } from '../../components/toast-context'
 import { breedsById } from '../../data'
 import type { BadgeDef } from '../../data'
 import { breedName, dogGroupId, dogTitle, formatDateTime, ordinal } from '../../domain/format'
-import { MAX_STICKERS_PER_DOG } from '../../domain/types'
+import { MAX_PHOTOS_PER_DOG } from '../../domain/types'
+import type { Sticker } from '../../domain/types'
 import type { GiphySticker } from '../../services/giphy'
 import { getCoarseLocation } from '../../services/location'
 import { awardNewBadges } from '../../storage/awardBadges'
 import { useData } from '../../storage/data-context'
 import { repo } from '../../storage/localRepo'
 import { useDogPhotos } from '../../storage/useDogPhotos'
-import { usePhotoUrl } from '../../storage/usePhotoUrl'
+import { usePhoto } from '../../storage/usePhotoUrl'
 
 export function DogPage() {
   const { dogId = '' } = useParams()
@@ -34,7 +36,7 @@ export function DogPage() {
   const [chosenPhotoId, setChosenPhotoId] = useState<string | null>(null)
   // The photo being shown: the one tapped in the strip if it still exists, otherwise the cover.
   const shownId = chosenPhotoId && photoIds.includes(chosenPhotoId) ? chosenPhotoId : (dog?.primaryPhotoId ?? photoIds[0])
-  const photoUrl = usePhotoUrl(shownId, 'full')
+  const { url: photoUrl, style: photoCrop } = usePhoto(shownId, 'full')
   const stickers = snapshot.stickers.filter((s) => s.dogId === dogId)
 
   const [editing, setEditing] = useState(false)
@@ -44,11 +46,16 @@ export function DogPage() {
   const [changingBreed, setChangingBreed] = useState(false)
   const [pendingCustom, setPendingCustom] = useState<string | null>(null)
   const [pendingGroup, setPendingGroup] = useState('')
-  const [decorating, setDecorating] = useState(false)
-  const [managingPhotos, setManagingPhotos] = useState(false)
+  // Under the photo: nothing, the add-a-photo controls (from the "+" tile), or the controls for editing the photo shown (the Edit button).
+  const [photoPanel, setPhotoPanel] = useState<'none' | 'add' | 'edit'>('none')
   const [pickerOpen, setPickerOpen] = useState(false)
+  // The stickers as they were when Edit opened, so Cancel can put them back.
+  const [stickersBefore, setStickersBefore] = useState<Sticker[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selected = stickers.find((s) => s.id === selectedId) ?? null
+  // A sticker belongs to one photo: only the shown photo's are drawn and edited.
+  const photoStickers = stickers.filter((s) => s.photoId === shownId)
+  const selected = photoStickers.find((s) => s.id === selectedId) ?? null
+  const editingPhoto = photoPanel === 'edit'
 
   if (!dog) {
     return (
@@ -61,8 +68,6 @@ export function DogPage() {
 
   const breed = dog.breedId ? breedsById[dog.breedId] : undefined
   const shownIndex = shownId ? photoIds.indexOf(shownId) : -1
-  // Stickers belong to the cover photo, so they're only drawn while it (or the silhouette) is showing.
-  const onCover = !dog.primaryPhotoId || shownId === dog.primaryPhotoId
   const photoAlt = photoIds.length > 1 && shownIndex >= 0 ? `${dogTitle(dog)}, photo ${shownIndex + 1} of ${photoIds.length}` : `${dogTitle(dog)}, a ${breedName(dog)}`
 
   const metAgain = async () => {
@@ -118,13 +123,39 @@ export function DogPage() {
 
   const addSticker = async (g: GiphySticker) => {
     setPickerOpen(false)
+    if (!shownId) return
     try {
-      const s = await repo.addSticker(dog.id, { giphyId: g.giphyId, title: g.title, url: g.url, stillUrl: g.stillUrl, width: g.width, height: g.height })
+      const s = await repo.addSticker(dog.id, { photoId: shownId, giphyId: g.giphyId, title: g.title, url: g.url, stillUrl: g.stillUrl, width: g.width, height: g.height })
       setSelectedId(s.id)
-      setDecorating(true)
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not add that sticker.')
     }
+  }
+
+  const openEdit = () => {
+    setStickersBefore(stickers) // what Cancel puts back
+    setSelectedId(null)
+    setPhotoPanel('edit')
+  }
+
+  const closePhotoPanel = () => {
+    setPhotoPanel('none')
+    setSelectedId(null)
+  }
+
+  const cancelEdit = async () => {
+    try {
+      await repo.restoreStickers(dog.id, stickersBefore)
+    } catch {
+      toast('Could not undo the sticker changes.')
+    }
+    closePhotoPanel()
+  }
+
+  const choosePhoto = (id: string | null) => {
+    setChosenPhotoId(id)
+    setSelectedId(null) // a selected sticker belongs to the photo that was showing
+    if (photoPanel === 'add') setPhotoPanel('none')
   }
 
   const remove = async () => {
@@ -140,21 +171,68 @@ export function DogPage() {
         ← {breedName(dog)}
       </Link>
 
-      <div className={`hero ${decorating ? 'hero--decorating' : ''}`}>
-        {photoUrl ? <img src={photoUrl} alt={photoAlt} /> : <Silhouette variant={dogGroupId(dog) ?? 'mixed'} />}
-        {stickers.length > 0 && onCover && (
+      <div className={`hero ${editingPhoto ? 'hero--decorating' : ''}`}>
+        {photoUrl ? <img src={photoUrl} alt={photoAlt} style={photoCrop} /> : <Silhouette variant={dogGroupId(dog) ?? 'mixed'} />}
+        {photoStickers.length > 0 && (
           <StickerLayer
-            stickers={stickers}
-            editing={decorating}
+            stickers={photoStickers}
+            editing={editingPhoto}
             selectedId={selectedId}
             onSelect={setSelectedId}
             onChange={(id, patch) => repo.updateSticker(id, patch)}
           />
         )}
+        {/* Editing starts here, in the photo's corner. It is hidden while the edit controls are open. */}
+        {shownId && !editingPhoto && (
+          <button type="button" className="hero__edit" onClick={openEdit} aria-label="Edit photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+            </svg>
+            Edit
+          </button>
+        )}
       </div>
 
-      {(photoIds.length > 1 || (managingPhotos && photoIds.length > 0)) && (
-        <PhotoStrip photoIds={photoIds} selectedId={shownId} coverId={dog.primaryPhotoId} onSelect={setChosenPhotoId} />
+      <PhotoStrip
+        photoIds={photoIds}
+        selectedId={shownId}
+        coverId={dog.primaryPhotoId}
+        onSelect={choosePhoto}
+        onAdd={() => setPhotoPanel((p) => (p === 'add' ? 'none' : 'add'))}
+        adding={photoPanel === 'add'}
+        canAdd={photoIds.length < MAX_PHOTOS_PER_DOG}
+      />
+
+      {/* The controls open right under the photo, so the photo and the controls are on screen together. */}
+      {photoPanel === 'add' && (
+        <PhotoAdder
+          dog={dog}
+          photoCount={photoIds.length}
+          onAdded={(id) => {
+            choosePhoto(id)
+            setPhotoPanel('none')
+          }}
+          onClose={() => setPhotoPanel('none')}
+        />
+      )}
+
+      {editingPhoto && shownId && (
+        <PhotoEditor
+          key={shownId}
+          dog={dog}
+          photoId={shownId}
+          stickers={photoStickers}
+          selected={selected}
+          onSelect={setSelectedId}
+          onOpenPicker={() => setPickerOpen(true)}
+          onDeleted={() => {
+            setChosenPhotoId(null)
+            closePhotoPanel()
+          }}
+          onCancel={cancelEdit}
+          onDone={closePhotoPanel}
+        />
       )}
 
       <header className="stack">
@@ -176,29 +254,6 @@ export function DogPage() {
       </button>
 
       <div className="action-grid">
-        <button
-          type="button"
-          className="btn"
-          aria-pressed={managingPhotos}
-          onClick={() => {
-            setManagingPhotos((v) => !v)
-            setDecorating(false)
-          }}
-        >
-          Photos{photoIds.length > 1 ? ` (${photoIds.length})` : ''}
-        </button>
-        <button
-          type="button"
-          className="btn"
-          aria-pressed={decorating}
-          onClick={() => {
-            setDecorating((v) => !v)
-            setManagingPhotos(false)
-            setChosenPhotoId(null) // stickers live on the cover photo, so show it
-          }}
-        >
-          Stickers
-        </button>
         <Link to={`/share/${dog.id}`} className="btn">
           Share
         </Link>
@@ -206,73 +261,6 @@ export function DogPage() {
           {editing ? 'Cancel' : 'Edit'}
         </button>
       </div>
-
-      {managingPhotos && <PhotoManager dog={dog} photoIds={photoIds} shownId={shownId} onChoose={setChosenPhotoId} />}
-
-      {decorating && (
-        <section className="card stack" aria-labelledby="stickers-heading">
-          <div className="row row--between">
-            <h2 id="stickers-heading">Stickers</h2>
-            <span className="mono small">
-              {stickers.length}/{MAX_STICKERS_PER_DOG}
-            </span>
-          </div>
-          <button type="button" className="btn" onClick={() => setPickerOpen(true)} disabled={stickers.length >= MAX_STICKERS_PER_DOG}>
-            Add a sticker
-          </button>
-
-          {selected ? (
-            <div className="stack">
-              <div className="field">
-                <label htmlFor="sticker-size">Size</label>
-                <input
-                  id="sticker-size"
-                  type="range"
-                  min={5}
-                  max={100}
-                  step={1}
-                  value={Math.round(selected.scale * 100)}
-                  onChange={(e) => repo.updateSticker(selected.id, { scale: Number(e.target.value) / 100 })}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="sticker-rotate">Rotate</label>
-                <input
-                  id="sticker-rotate"
-                  type="range"
-                  min={-180}
-                  max={180}
-                  step={5}
-                  value={Math.round(selected.rotation)}
-                  onChange={(e) => repo.updateSticker(selected.id, { rotation: Number(e.target.value) })}
-                />
-              </div>
-              <div className="row">
-                <button type="button" className="btn grow" onClick={() => repo.updateSticker(selected.id, { toFront: true })}>
-                  Bring to front
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--danger grow"
-                  onClick={async () => {
-                    await repo.removeSticker(selected.id)
-                    setSelectedId(null)
-                  }}
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="muted small">
-              {stickers.length ? 'Tap a sticker to select it. Drag with one finger to move it; pinch and twist with two fingers to resize and rotate. Arrow keys also move it.' : 'Pick a sticker, then drag it where you want it on the photo.'}
-            </p>
-          )}
-          <button type="button" className="btn btn--primary" onClick={() => { setDecorating(false); setSelectedId(null) }}>
-            Done
-          </button>
-        </section>
-      )}
 
       {editing && (
         <div className="card stack">

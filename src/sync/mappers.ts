@@ -48,6 +48,9 @@ export interface RemotePhoto {
   thumb_path: string
   width: number
   height: number
+  /** Where the dog is in the photo (fractions of width/height); null = centered. */
+  focus_x?: number | null
+  focus_y?: number | null
   created_at: string
   updated_at: string
   deleted_at: string | null
@@ -71,6 +74,7 @@ export interface RemoteSticker {
   id: string
   user_id: string
   dog_id: string
+  photo_id?: string | null
   giphy_id: string
   title: string | null
   url: string
@@ -197,6 +201,7 @@ export const stickerToRemote = (s: Sticker, userId: string): RemoteSticker => ({
   id: s.id,
   user_id: userId,
   dog_id: s.dogId,
+  photo_id: nullable(s.photoId),
   giphy_id: s.giphyId,
   title: nullable(s.title),
   url: s.url,
@@ -217,6 +222,7 @@ export const stickerFromRemote = (r: RemoteSticker): Sticker => ({
   id: r.id,
   userId: r.user_id,
   dogId: r.dog_id,
+  photoId: undef(r.photo_id),
   giphyId: r.giphy_id,
   title: undef(r.title),
   url: r.url,

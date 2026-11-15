@@ -42,6 +42,9 @@ export interface Photo extends BaseRecord {
   thumb: Blob
   width: number
   height: number
+  /** Where the dog is in the photo, as fractions of its width and height (0 = left/top edge, 1 = right/bottom). Unset = centered. */
+  focusX?: number
+  focusY?: number
 }
 
 export interface Suggestion {
@@ -65,6 +68,8 @@ export interface Guess extends BaseRecord {
 /** An animated GIPHY sticker placed on a dog's photo box. Only a reference is stored, never the image itself. */
 export interface Sticker extends BaseRecord {
   dogId: string
+  /** The photo this sticker sits on. It stays with that photo whatever the cover is. Unset only for a sticker from before this existed, until the app attaches it. */
+  photoId?: string
   giphyId: string
   title?: string
   /** Animated image on GIPHY's CDN. */
@@ -84,7 +89,8 @@ export interface Sticker extends BaseRecord {
   z: number
 }
 
-export const MAX_STICKERS_PER_DOG = 8
+/** Stickers on one photo. Each photo has its own. */
+export const MAX_STICKERS_PER_PHOTO = 8
 export const MAX_PHOTOS_PER_DOG = 12
 
 export interface BadgeAward {

@@ -1,3 +1,5 @@
+import { CENTER, coverPosition } from '../../domain/photoFocus'
+import type { Focus } from '../../domain/photoFocus'
 import { silhouetteDataUrl } from './silhouetteSvg'
 
 export interface CardInput {
@@ -11,6 +13,8 @@ export interface CardInput {
   rarityId: string
   entryLabel: string
   photo?: Blob
+  /** Where the dog is in the photo, so the crop to the card's frame keeps it in view. Centered when omitted. */
+  photoFocus?: Focus
   metAt: number
   /** Neighborhood. Only drawn when provided; the share screen defaults to leaving it off. */
   place?: string
@@ -107,7 +111,9 @@ export async function renderShareCard(input: CardInput): Promise<Blob> {
     const scale = Math.max(fw / bmp.width, fh / bmp.height)
     const dw = bmp.width * scale
     const dh = bmp.height * scale
-    ctx.drawImage(bmp, fx + (fw - dw) / 2, fy + (fh - dh) / 2, dw, dh)
+    // The photo overflows the frame along one axis; the focus decides how much of that overflow is cut from each side.
+    const at = coverPosition(input.photoFocus ?? CENTER, bmp.width / bmp.height, fw / fh)
+    ctx.drawImage(bmp, fx - at.x * (dw - fw), fy - at.y * (dh - fh), dw, dh)
     bmp.close()
   } else {
     const sil = await loadImage(silhouetteDataUrl(input.groupId, C.soft))

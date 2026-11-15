@@ -257,6 +257,68 @@ describe('signing out', () => {
   })
 })
 
+describe('photo framing', () => {
+  const pic = (t: string) => ({ blob: new Blob([t]), thumb: new Blob([t + 't']), width: 4, height: 3 })
+
+  it('syncs where the dog is in a photo, and the other device does not download the image again', async () => {
+    const remote = fakeStore()
+    const { dog } = await a.logSighting({ breedId: 'beagle', metAt: 1 })
+    const p = await a.addDogPhoto(dog.id, pic('one'))
+    await claimDevice(dbA, USER)
+    await syncOnce(dbA, remote, USER)
+    await syncOnce(dbB, remote, USER)
+    expect((await dbB.photos.get(p.id))?.focusX).toBeUndefined() // nothing chosen yet: centered
+
+    await new Promise((r) => setTimeout(r, 5))
+    await a.setPhotoFocus(p.id, { x: 0.2, y: 0.8 })
+    await syncOnce(dbA, remote, USER)
+    expect([...remote.tables.get('photos')!.values()][0]).toMatchObject({ focus_x: 0.2, focus_y: 0.8 })
+
+    let downloads = 0
+    const download = remote.downloadPhoto
+    remote.downloadPhoto = async (path) => {
+      downloads++
+      return download(path)
+    }
+    await syncOnce(dbB, remote, USER)
+    expect(await dbB.photos.get(p.id)).toMatchObject({ focusX: 0.2, focusY: 0.8, width: 4, height: 3 })
+    expect(downloads).toBe(0) // only the framing changed
+    expect((await dbB.photos.get(p.id))?.blob).toBeDefined() // the image bytes are still there
+  })
+
+  it('sends null for a photo with no framing, and a new device receives the framing with the photo', async () => {
+    const remote = fakeStore()
+    const { dog } = await a.logSighting({ breedId: 'beagle', metAt: 1 })
+    const p1 = await a.addDogPhoto(dog.id, pic('one'))
+    const p2 = await a.addDogPhoto(dog.id, pic('two'))
+    await a.setPhotoFocus(p2.id, { x: 0.9, y: 0.1 })
+    await claimDevice(dbA, USER)
+    await syncOnce(dbA, remote, USER)
+    const rows = new Map([...remote.tables.get('photos')!.values()].map((r) => [r.id as string, r]))
+    expect(rows.get(p1.id)).toMatchObject({ focus_x: null, focus_y: null })
+    expect(rows.get(p2.id)).toMatchObject({ focus_x: 0.9, focus_y: 0.1 })
+    await syncOnce(dbB, remote, USER)
+    expect(await dbB.photos.get(p2.id)).toMatchObject({ focusX: 0.9, focusY: 0.1 })
+    expect((await dbB.photos.get(p1.id))?.focusX).toBeUndefined()
+  })
+
+  it('a framing removed on one device is removed on the other', async () => {
+    const remote = fakeStore()
+    const { dog } = await a.logSighting({ breedId: 'beagle', metAt: 1 })
+    const p = await a.addDogPhoto(dog.id, pic('one'))
+    await a.setPhotoFocus(p.id, { x: 0.3, y: 0.3 })
+    await claimDevice(dbA, USER)
+    await syncOnce(dbA, remote, USER)
+    await syncOnce(dbB, remote, USER)
+    expect((await dbB.photos.get(p.id))?.focusX).toBe(0.3)
+    await new Promise((r) => setTimeout(r, 5))
+    await dbA.photos.update(p.id, { focusX: undefined, focusY: undefined, updatedAt: Date.now() })
+    await syncOnce(dbA, remote, USER)
+    await syncOnce(dbB, remote, USER)
+    expect((await dbB.photos.get(p.id))?.focusX).toBeUndefined()
+  })
+})
+
 describe('deleting photos', () => {
   const pic = (t: string) => ({ blob: new Blob([t], { type: 'image/jpeg' }), thumb: new Blob([t], { type: 'image/jpeg' }), width: 4, height: 3 })
 
