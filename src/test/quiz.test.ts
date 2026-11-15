@@ -136,6 +136,48 @@ describe('the hardest round (no choices)', () => {
   })
 })
 
+describe('the Common breeds round (easy)', () => {
+  const commonIds = new Set(pool.filter((b) => b.rarity === 'common').map((b) => b.id))
+  const allSameGroup = (mode: Parameters<typeof buildRound>[0]['mode'], seeds: number) => {
+    let same = 0
+    let total = 0
+    for (let seed = 1; seed <= seeds; seed++) {
+      for (const q of buildRound({ pool, mode, photoCounts: quizPhotos, rng: seededRng(seed) })) {
+        total++
+        if (new Set(q.options.map((id) => byId(id).groupId)).size === 1) same++
+      }
+    }
+    return same / total
+  }
+
+  it('has enough everyday breeds with photos for a full round', () => {
+    expect(commonIds.size).toBeGreaterThanOrEqual(20)
+    expect(poolForMode(pool, { kind: 'common' }, new Set()).every((b) => b.rarity === 'common')).toBe(true)
+  })
+
+  it('only asks about common breeds, ten of them, with four unique options', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const qs = buildRound({ pool, mode: { kind: 'common' }, photoCounts: quizPhotos, rng: seededRng(seed) })
+      expect(qs).toHaveLength(10)
+      for (const q of qs) {
+        expect(commonIds.has(q.breedId)).toBe(true)
+        expect(new Set(q.options).size).toBe(4)
+        expect(q.options[q.correctIndex]).toBe(q.breedId)
+      }
+    }
+  })
+
+  it('does not stack the wrong answers with look-alikes from the same category, so it stays easy', () => {
+    // In the normal round nearly every question is four breeds from one category (the look-alikes); here almost none are.
+    expect(allSameGroup({ kind: 'any' }, 60)).toBeGreaterThan(0.8)
+    expect(allSameGroup({ kind: 'common' }, 60)).toBeLessThan(0.3)
+  })
+
+  it('never uses Mixed breed (random mixed dogs make an unfair question) as a question or an answer', () => {
+    expect(pool.some((b) => b.id === 'mixed-breed')).toBe(false)
+  })
+})
+
 describe('confusable', () => {
   it('flags names that contain one another, ignoring size notes in brackets', () => {
     expect(confusable(byId('poodle'), byId('poodle-toy'))).toBe(true)

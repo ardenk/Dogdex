@@ -17,7 +17,7 @@ import { QuizStart } from './QuizStart'
 type Phase = 'start' | 'loading' | 'question' | 'answered' | 'results' | 'error'
 
 const modeLabel = (mode: QuizMode, format: QuizFormat) =>
-  `${mode.kind === 'group' ? `${groupsById[mode.groupId]?.name ?? 'Category'} quiz` : mode.kind === 'met' ? 'Breeds you’ve met' : 'Any breed'}${format === 'search' ? ' · hardest' : ''}`
+  `${mode.kind === 'group' ? `${groupsById[mode.groupId]?.name ?? 'Category'} quiz` : mode.kind === 'met' ? 'Breeds you’ve met' : mode.kind === 'common' ? 'Common breeds' : 'Any breed'}${format === 'search' ? ' · hardest' : ''}`
 
 /** The breed quiz: pick a mode, answer ten "name this breed" photo questions, see the score. */
 export function QuizPage() {

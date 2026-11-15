@@ -49,6 +49,14 @@ describe('mapQuizBreeds', () => {
     expect(map({ spaniel: ['kelpie'] }).looseMatches).toEqual([{ path: 'spaniel/kelpie', breedId: 'australian-kelpie' }])
   })
 
+  it('leaves a photo set out on purpose when its override is empty, without calling it a problem', () => {
+    const r = map({ mix: [], beagle: [] }, { mix: '' })
+    expect(r.mapped).toEqual([{ breedId: 'beagle', path: 'beagle' }])
+    expect(r.leftOut).toEqual(['mix'])
+    expect(r.unmatched).toEqual([])
+    expect(r.badOverrides).toEqual([])
+  })
+
   it('reports overrides that point at a missing breed or photo set', () => {
     const r = map({ beagle: [] }, { 'nope/none': 'beagle', beagle: 'not-a-breed' })
     expect(r.badOverrides).toHaveLength(2)
@@ -86,6 +94,10 @@ describe('the quiz photo mapping in the data files', () => {
   it('records how many photos each breed has', () => {
     for (const q of data.quizImages) expect(q.photos, q.breedId).toBeGreaterThan(0)
     expect(quizPhotos['labrador-retriever']).toBeGreaterThan(100)
+  })
+
+  it('leaves out Mixed breed, whose photos are random mixed dogs', () => {
+    expect(quizPaths['mixed-breed']).toBeUndefined()
   })
 
   it('leaves out breeds Dog CEO has no photos for', () => {

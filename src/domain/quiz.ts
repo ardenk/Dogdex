@@ -37,7 +37,7 @@ export function scoreMessage(correct: number, total: number): string {
   return 'Tough set. Every breed you miss is one you will spot next time.'
 }
 
-export type QuizMode = { kind: 'any' } | { kind: 'group'; groupId: string } | { kind: 'met' }
+export type QuizMode = { kind: 'any' } | { kind: 'common' } | { kind: 'group'; groupId: string } | { kind: 'met' }
 
 export interface QuizQuestion {
   /** The breed in the photo. */
@@ -67,6 +67,7 @@ export function quizPool(breeds: Breed[], paths: Record<string, string>): Breed[
 export function poolForMode(pool: Breed[], mode: QuizMode, metBreedIds: ReadonlySet<string>): Breed[] {
   if (mode.kind === 'group') return pool.filter((b) => b.groupId === mode.groupId)
   if (mode.kind === 'met') return pool.filter((b) => metBreedIds.has(b.id))
+  if (mode.kind === 'common') return pool.filter((b) => b.rarity === 'common')
   return pool
 }
 
@@ -136,7 +137,7 @@ export interface RoundOptions {
 
 /**
  * Picks the questions for one round. Each question is a different breed. Wrong answers prefer the same category
- * (the look-alikes), then anything else, and are never confusable with the right answer or with each other.
+ * (the look-alikes), then anything else (except in the easy common-breeds mode, which mixes categories), and are never confusable with the right answer or with each other.
  * A small pool gives a shorter round; fewer than two possible answers gives no question.
  * Breeds with only a couple of photos can still be asked about, just less often than the rest. (Only the photo's
  * breed is affected: any breed may still appear as a wrong answer, since that shows only a name.)
@@ -151,7 +152,11 @@ export function buildRound({ pool, mode, metBreedIds = new Set(), photoCounts, r
       continue
     }
     const others = pool.filter((b) => b.id !== target.id && !confusable(b, target))
-    const ordered = [...shuffled(others.filter((b) => b.groupId === target.groupId), rng), ...shuffled(others.filter((b) => b.groupId !== target.groupId), rng)]
+    // Look-alikes from the same category make a question harder, so the easy mode (common breeds) mixes categories freely.
+    const ordered =
+      mode.kind === 'common'
+        ? shuffled(others, rng)
+        : [...shuffled(others.filter((b) => b.groupId === target.groupId), rng), ...shuffled(others.filter((b) => b.groupId !== target.groupId), rng)]
     const picked: Breed[] = []
     for (const candidate of ordered) {
       if (picked.length === choices - 1) break

@@ -99,7 +99,6 @@
   { "breedId": "maltese", "path": "maltese", "photos": 225 },
   { "breedId": "miniature-pinscher", "path": "pinscher/miniature", "photos": 175 },
   { "breedId": "miniature-schnauzer", "path": "schnauzer/miniature", "photos": 136 },
-  { "breedId": "mixed-breed", "path": "mix", "photos": 181 },
   { "breedId": "mudhol-hound", "path": "mudhol/indian", "photos": 1 },
   { "breedId": "newfoundland", "path": "newfoundland", "photos": 154 },
   { "breedId": "norfolk-terrier", "path": "terrier/norfolk", "photos": 142 },

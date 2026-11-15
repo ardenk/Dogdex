@@ -724,3 +724,4 @@ input[type='range'] { width: 100%; min-height: var(--tap); accent-color: var(--a
 .quiz-missed { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 .pick-item--on { background: var(--accent-wash); font-weight: 700; }
 .quiz-category { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 64px; text-align: center; }
+.quiz-tile--wide { grid-column: 1 / -1; min-height: 110px; }

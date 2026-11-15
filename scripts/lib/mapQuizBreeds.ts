@@ -2,6 +2,7 @@
  * Pure logic for `npm run map:quiz`: pairs Dog CEO's breeds (https://dog.ceo/dog-api/) with Dogdex breeds so the
  * quiz knows which photo set shows which breed. No network or file access here (tested in src/test/mapQuizBreeds.test.ts).
  *
+ * An override of "" leaves a photo set out on purpose (for example "mix": random mixed dogs make an unfair question).
  * Dog CEO names a breed "beagle" or a main breed plus a sub-breed ("hound" + "afghan" = Afghan Hound).
  */
 import type { Breed } from '../../src/data/schema.ts'
@@ -32,6 +33,8 @@ export interface QuizMapping {
   duplicates: { path: string; breedId: string }[]
   /** Overrides that name a breed id or a Dog CEO path that does not exist. */
   badOverrides: string[]
+  /** Photo sets left out on purpose (an override of "") because they would make unfair questions. */
+  leftOut: string[]
 }
 
 export function mapQuizBreeds(pairs: CeoPair[], breeds: Breed[], overrides: Record<string, string>): QuizMapping {
@@ -40,15 +43,19 @@ export function mapQuizBreeds(pairs: CeoPair[], breeds: Breed[], overrides: Reco
   const byId = new Map(breeds.map((b) => [b.id, b]))
   const paths = new Set(pairs.map((p) => p.path))
 
-  const out: QuizMapping = { mapped: [], unmatched: [], looseMatches: [], duplicates: [], badOverrides: [] }
+  const out: QuizMapping = { mapped: [], unmatched: [], looseMatches: [], duplicates: [], badOverrides: [], leftOut: [] }
   for (const [path, id] of Object.entries(overrides)) {
     if (!paths.has(path)) out.badOverrides.push(`${path}: Dog CEO has no such photo set`)
-    if (!byId.has(id)) out.badOverrides.push(`${path} -> ${id}: no such breed id`)
+    if (id !== '' && !byId.has(id)) out.badOverrides.push(`${path} -> ${id}: no such breed id`)
   }
 
   const taken = new Map<string, string>()
   for (const p of pairs) {
     const forced = overrides[p.path]
+    if (forced === '') {
+      out.leftOut.push(p.path)
+      continue
+    }
     let breed = forced ? byId.get(forced) : undefined
     let loose = false
     if (!breed) {

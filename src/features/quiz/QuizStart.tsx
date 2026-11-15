@@ -14,15 +14,15 @@ interface Props {
   onStart: (mode: QuizMode, format: QuizFormat) => void
 }
 
-/** One difficulty tile. `level` is 1 (easiest) to 4 (hardest) and drives the little meter. */
-function Tile({ title, label, level, disabled, note, expanded, onClick }: { title: string; label: string; level: number; disabled?: boolean; note?: string; expanded?: boolean; onClick: () => void }) {
+/** One difficulty tile. `level` is 1 (easiest) to 5 (hardest) and drives the little meter. `wide` spans both columns. */
+function Tile({ title, label, level, disabled, note, expanded, wide, onClick }: { title: string; label: string; level: number; disabled?: boolean; note?: string; expanded?: boolean; wide?: boolean; onClick: () => void }) {
   return (
-    <button type="button" className="quiz-tile" disabled={disabled} aria-expanded={expanded} onClick={onClick}>
+    <button type="button" className={`quiz-tile ${wide ? 'quiz-tile--wide' : ''}`} disabled={disabled} aria-expanded={expanded} onClick={onClick}>
       {/* The spaces between the parts keep the button's spoken name readable: "All breeds Medium". */}
       <span className="quiz-tile__name">{title}</span>{' '}
       <span className="quiz-tile__level">
         <span className="quiz-tile__meter" aria-hidden="true">
-          {[1, 2, 3, 4].map((n) => (
+          {[1, 2, 3, 4, 5].map((n) => (
             <i key={n} className={n <= level ? 'on' : ''} />
           ))}
         </span>
@@ -64,9 +64,18 @@ export function QuizStart({ metQuizzable, online, onStart }: Props) {
           note={metLocked ? `Meet ${MIN_MET_TO_QUIZ} breeds that have photos to unlock (you have ${metQuizzable})` : undefined}
           onClick={() => onStart({ kind: 'met' }, 'choices')}
         />
-        <Tile title="All breeds" label="Medium" level={2} disabled={!online} onClick={() => onStart({ kind: 'any' }, 'choices')} />
-        <Tile title="One breed category" label="Hard" level={3} disabled={!online} expanded={choosingCategory} onClick={() => setChoosingCategory((v) => !v)} />
-        <Tile title="All breeds, no suggestions" label="Hardest" level={4} disabled={!online} note="You search for the name" onClick={() => onStart({ kind: 'any' }, 'search')} />
+        <Tile title="Common breeds" label="Easy" level={2} disabled={!online} note="The dogs you’re most likely to meet" onClick={() => onStart({ kind: 'common' }, 'choices')} />
+        <Tile title="All breeds" label="Medium" level={3} disabled={!online} onClick={() => onStart({ kind: 'any' }, 'choices')} />
+        <Tile
+          title="One breed category"
+          label="Hard"
+          level={4}
+          disabled={!online}
+          note="Harder to tell similar breeds apart"
+          expanded={choosingCategory}
+          onClick={() => setChoosingCategory((v) => !v)}
+        />
+        <Tile title="All breeds, no suggestions" label="Hardest" level={5} wide disabled={!online} note="You search for the name" onClick={() => onStart({ kind: 'any' }, 'search')} />
       </div>
 
       {choosingCategory && (

@@ -69,13 +69,49 @@ afterEach(() => vi.restoreAllMocks())
 describe('quiz start screen', () => {
   const metFour = () => snapshot(['beagle', 'akita', 'boxer', 'pug'])
 
-  it('asks what we are testing today, with four difficulty tiles in a grid, easiest first', () => {
+  it('asks what we are testing today, with five difficulty tiles in a grid, easiest first', () => {
     renderQuiz(metFour())
     expect(screen.getByRole('heading', { level: 1, name: 'What are we testing today?' })).toBeTruthy()
     expect(document.querySelector('.quiz-tiles')).not.toBeNull()
     const tiles = [...document.querySelectorAll('.quiz-tile')]
-    expect(tiles.map((t) => t.querySelector('.quiz-tile__name')?.textContent)).toEqual(['Breeds you’ve met', 'All breeds', 'One breed category', 'All breeds, no suggestions'])
-    expect(tiles.map((t) => t.querySelector('.quiz-tile__level')?.textContent)).toEqual(['Easiest', 'Medium', 'Hard', 'Hardest'])
+    expect(tiles.map((t) => t.querySelector('.quiz-tile__name')?.textContent)).toEqual(['Breeds you’ve met', 'Common breeds', 'All breeds', 'One breed category', 'All breeds, no suggestions'])
+    expect(tiles.map((t) => t.querySelector('.quiz-tile__level')?.textContent)).toEqual(['Easiest', 'Easy', 'Medium', 'Hard', 'Hardest'])
+  })
+
+  it('explains that a category quiz is harder because similar breeds look alike', () => {
+    renderQuiz()
+    expect(tile(/^One breed category/)).toHaveTextContent('Harder to tell similar breeds apart')
+  })
+
+  it('gives every tile a five-step difficulty meter that fills up as it gets harder', () => {
+    renderQuiz()
+    const filled = [...document.querySelectorAll('.quiz-tile')].map((t) => [t.querySelectorAll('.quiz-tile__meter i').length, t.querySelectorAll('.quiz-tile__meter i.on').length])
+    expect(filled).toEqual([[5, 1], [5, 2], [5, 3], [5, 4], [5, 5]])
+  })
+
+  it('"Common breeds" starts a round about everyday breeds only, with four choices', async () => {
+    renderQuiz()
+    expect(tile(/^Common breeds Easy/)).toHaveTextContent('The dogs you’re most likely to meet')
+    fireEvent.click(tile(/^Common breeds Easy/))
+    await screen.findByRole('img', { name: 'A dog to identify' })
+    const commonPaths = pool.filter((b) => b.rarity === 'common').map((b) => quizPaths[b.id])
+    expect(commonPaths).toContain(randomImageUrl.mock.calls[0][0])
+    expect(within(screen.getByRole('group', { name: 'Which breed is this?' })).getAllByRole('button')).toHaveLength(4)
+  })
+
+  it('labels a finished common-breeds round as such', async () => {
+    renderQuiz()
+    fireEvent.click(tile(/^Common breeds Easy/))
+    const qs = buildRound({ pool, mode: { kind: 'common' }, photoCounts: quizPhotos, rng: seededRng(SEED) })
+    for (let i = 0; i < qs.length; i++) {
+      await screen.findByText(`Question ${i + 1} of ${qs.length}`)
+      await screen.findByRole('img', { name: 'A dog to identify' })
+      const q = qs[i]
+      fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${breedsById[q.breedId].name.replace(/[()]/g, '\\$&')}`) }))
+      fireEvent.click(await screen.findByRole('button', { name: i === qs.length - 1 ? 'See results' : 'Next question' }))
+    }
+    expect(await screen.findByText('Common breeds')).toBeTruthy()
+    expect(await screen.findByRole('heading', { level: 1, name: '10 of 10' })).toBeTruthy()
   })
 
   it('has dropped the old intro text, the radio buttons and the Start button', () => {
