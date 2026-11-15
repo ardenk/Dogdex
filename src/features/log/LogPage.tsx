@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { BreedPicker } from '../../components/BreedPicker'
 import { GroupSelect } from '../../components/GroupSelect'
 import type { BreedSelection } from '../../components/BreedPicker'
@@ -45,6 +45,8 @@ function useRecentBreeds(): string[] {
 
 export function LogPage() {
   const navigate = useNavigate()
+  // Opened from a quiz answer ("Spot one? Log it"): finishing or cancelling goes back to the quiz.
+  const backTo = (useLocation().state as { from?: string } | null)?.from === 'quiz' ? '/quiz' : '/'
   const toast = useToast()
   const { settings } = useData()
   const auth = useAuth()
@@ -203,7 +205,7 @@ export function LogPage() {
         .filter(Boolean)
         .join(' ')
       toast(`${base}. ${extra}`.trim())
-      navigate('/')
+      navigate(backTo)
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Something went wrong saving that dog.')
     } finally {
@@ -221,8 +223,8 @@ export function LogPage() {
     <div className="app">
       <main className="page page--bare">
         <div className="topbar">
-          <Link to="/" className="back-link">
-            ← Cancel
+          <Link to={backTo} className="back-link">
+            {backTo === '/quiz' ? '← Back to quiz' : '← Cancel'}
           </Link>
           <h1 style={{ fontSize: '1.4rem' }}>Log a dog</h1>
         </div>
@@ -448,7 +450,7 @@ export function LogPage() {
           {...celebration}
           onClose={() => {
             setCelebration(null)
-            navigate('/')
+            navigate(backTo)
           }}
         />
       )}

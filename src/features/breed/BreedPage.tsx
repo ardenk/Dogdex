@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { DogRow } from '../../components/DogRow'
 import { GroupSelect } from '../../components/GroupSelect'
 import { RarityMark } from '../../components/RarityMark'
@@ -16,6 +16,8 @@ export function BreedPage() {
   const breed = breedsById[breedId]
   const { snapshot } = useData()
   const [more, setMore] = useState(false)
+  // Opened from a quiz answer: the way back is the quiz (which remembers its place), not the Dogdex.
+  const fromQuiz = (useLocation().state as { from?: string } | null)?.from === 'quiz'
 
   const dogs = snapshot.dogs.filter((d) => d.breedId === breedId).sort((a, b) => b.lastMetAt - a.lastMetAt)
   const encounterCount = (dogId: string) => snapshot.encounters.filter((e) => e.dogId === dogId).length
@@ -33,7 +35,7 @@ export function BreedPage() {
 
   return (
     <main className="page">
-      <Link to="/dogdex" className="back-link">← Dogdex</Link>
+      <Link to={fromQuiz ? '/quiz' : '/dogdex'} className="back-link">{fromQuiz ? '← Back to quiz' : '← Dogdex'}</Link>
 
       <div className="hero" style={dogs.length ? undefined : { background: 'transparent', borderStyle: 'dashed', boxShadow: 'none' }}>
         {heroUrl ? <img src={heroUrl} alt={`A ${breed.name} you met`} /> : <Silhouette variant={breed.groupId} />}

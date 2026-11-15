@@ -91,11 +91,11 @@ export function QuizQuestion({ index, total, imageUrl, question, format, picked,
             <RarityMark rarity={right.rarity} />
           </div>
           <div className="row">
-            <Link to={`/dogdex/breed/${right.id}`} className="small">
+            <Link to={`/dogdex/breed/${right.id}`} state={{ from: 'quiz' }} className="small">
               See {right.name} in the Dogdex
             </Link>
             {!met && (
-              <Link to={`/log?breed=${right.id}`} className="small">
+              <Link to={`/log?breed=${right.id}`} state={{ from: 'quiz' }} className="small">
                 Spot one? Log it
               </Link>
             )}

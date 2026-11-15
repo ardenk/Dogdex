@@ -12,6 +12,7 @@ import { repo } from '../../storage/localRepo'
 import { QuizQuestion } from './QuizQuestion'
 import { QuizResults } from './QuizResults'
 import type { Answer } from './QuizResults'
+import { clearQuizSession, loadQuizSession, saveQuizSession } from './session'
 import { QuizStart } from './QuizStart'
 
 type Phase = 'start' | 'loading' | 'question' | 'answered' | 'results' | 'error'
@@ -27,15 +28,17 @@ export function QuizPage() {
   const metIds = useMemo(() => new Set(snapshot.dogs.filter((d) => !d.deletedAt && d.breedId).map((d) => d.breedId as string)), [snapshot.dogs])
   const metQuizzable = useMemo(() => pool.filter((b) => metIds.has(b.id)).length, [pool, metIds])
 
-  const [phase, setPhase] = useState<Phase>('start')
-  const [mode, setMode] = useState<QuizMode>({ kind: 'any' })
-  const [format, setFormat] = useState<QuizFormat>('choices')
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [index, setIndex] = useState(0)
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [picked, setPicked] = useState<string | null>(null)
-  const [answers, setAnswers] = useState<Answer[]>([])
-  const [skipped, setSkipped] = useState(0)
+  // A round left in progress (you went to read about a breed, say) comes back exactly where it was.
+  const [resumed] = useState(() => loadQuizSession())
+  const [phase, setPhase] = useState<Phase>(resumed ? (resumed.picked !== null ? 'answered' : resumed.imageUrl ? 'question' : 'loading') : 'start')
+  const [mode, setMode] = useState<QuizMode>(resumed?.mode ?? { kind: 'any' })
+  const [format, setFormat] = useState<QuizFormat>(resumed?.format ?? 'choices')
+  const [questions, setQuestions] = useState<Question[]>(resumed?.questions ?? [])
+  const [index, setIndex] = useState(resumed?.index ?? 0)
+  const [imageUrl, setImageUrl] = useState<string | null>(resumed?.imageUrl ?? null)
+  const [picked, setPicked] = useState<string | null>(resumed?.picked ?? null)
+  const [answers, setAnswers] = useState<Answer[]>(resumed?.answers ?? [])
+  const [skipped, setSkipped] = useState(resumed?.skipped ?? 0)
   const [message, setMessage] = useState<string | null>(null)
   const [celebration, setCelebration] = useState<BadgeDef[] | null>(null)
 
@@ -113,6 +116,12 @@ export function QuizPage() {
     })()
   }, [phase, answers])
 
+  // Remember the round while it is under way; forget it once it is finished or you are back at the start.
+  useEffect(() => {
+    if (phase === 'start' || phase === 'results') clearQuizSession()
+    else if (questions.length > 0) saveQuizSession({ mode, format, questions, index, imageUrl, picked, answers, skipped })
+  }, [phase, mode, format, questions, index, imageUrl, picked, answers, skipped])
+
   const start = (next: QuizMode, nextFormat: QuizFormat) => {
     const round = buildRound({ pool, mode: next, metBreedIds: metIds, photoCounts: quizPhotos, choices: choicesFor(nextFormat) })
     if (round.length === 0) {
@@ -149,7 +158,10 @@ export function QuizPage() {
     setPhase('loading')
   }
 
-  const close = () => navigate('/')
+  const close = () => {
+    clearQuizSession() // ending the quiz means ending it: the round is not kept
+    navigate('/')
+  }
   const current = questions[index]
 
   return (

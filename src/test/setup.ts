@@ -5,4 +5,8 @@ import { afterEach, expect } from 'vitest'
 import * as axeMatchers from 'vitest-axe/matchers'
 
 expect.extend(axeMatchers)
-afterEach(() => cleanup())
+// A quiz round in progress lives in session storage; every test starts without one.
+afterEach(() => {
+  cleanup()
+  sessionStorage.clear()
+})

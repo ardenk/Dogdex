@@ -6,7 +6,9 @@ import { breedsById, data, quizPaths, quizPhotos } from '../data'
 import { buildRound, quizPool, seededRng } from '../domain/quiz'
 import type { Dog, Snapshot } from '../domain/types'
 import { DEFAULT_SETTINGS } from '../domain/types'
+import { BreedPage } from '../features/breed/BreedPage'
 import { HomePage } from '../features/home/HomePage'
+import { LogPage } from '../features/log/LogPage'
 import { QuizPage } from '../features/quiz/QuizPage'
 import { YouPage } from '../features/you/YouPage'
 import * as dogceo from '../services/dogceo'
@@ -373,6 +375,155 @@ describe('the hardest round: no choices, search the breed name', () => {
     startHardest()
     await search('beag')
     expect(await axe(container, { rules: { 'color-contrast': { enabled: false } } })).toHaveNoViolations()
+  })
+})
+
+describe('keeping your place in the quiz', () => {
+  const answerFirst = async (qs: ReturnType<typeof planned>, i: number, right: boolean) => {
+    await screen.findByText(`Question ${i + 1} of ${qs.length}`)
+    await screen.findByRole('img', { name: 'A dog to identify' })
+    const q = qs[i]
+    const target = right ? q.breedId : q.options.find((id) => id !== q.breedId)!
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${breedsById[target].name.replace(/[()]/g, '\\$&')}`) }))
+  }
+
+  it('comes back to the same question, with the same photo and your answer, after you leave', async () => {
+    const first = renderQuiz()
+    startMedium()
+    const qs = planned()
+    await answerFirst(qs, 0, true)
+    const photo = (screen.getByRole('img', { name: 'A dog to identify' }) as HTMLImageElement).src
+    expect(await screen.findByText('✓ Correct')).toBeTruthy()
+    first.unmount() // e.g. "See Poodle (Toy) in the Dogdex"
+
+    renderQuiz()
+    expect(screen.queryByRole('heading', { name: 'What are we testing today?' })).toBeNull() // not back at the start
+    expect(screen.getByText('Question 1 of 10')).toBeTruthy()
+    expect(screen.getByText('✓ Correct')).toBeTruthy()
+    expect((screen.getByRole('img', { name: 'A dog to identify' }) as HTMLImageElement).src).toBe(photo)
+    for (const b of within(screen.getByRole('group', { name: 'Which breed is this?' })).getAllByRole('button')) expect(b).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
+    expect(await screen.findByText('Question 2 of 10')).toBeTruthy()
+  })
+
+  it('keeps your earlier answers, so the final score counts them', async () => {
+    const first = renderQuiz()
+    startMedium()
+    const qs = planned()
+    await answerFirst(qs, 0, true)
+    fireEvent.click(await screen.findByRole('button', { name: 'Next question' }))
+    await answerFirst(qs, 1, true)
+    first.unmount()
+
+    renderQuiz()
+    fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
+    for (let i = 2; i < qs.length; i++) {
+      await answerFirst(qs, i, false)
+      fireEvent.click(await screen.findByRole('button', { name: i === qs.length - 1 ? 'See results' : 'Next question' }))
+    }
+    expect(await screen.findByRole('heading', { level: 1, name: '2 of 10' })).toBeTruthy()
+    await waitFor(async () => expect((await repo.getSettings()).quizStats).toEqual({ rounds: 1, answered: 10, correct: 2, best: 2 }))
+  })
+
+  it('resumes the hardest (search) round too', async () => {
+    const first = renderQuiz()
+    fireEvent.click(tile(/^All breeds, no suggestions/))
+    await screen.findByRole('searchbox', { name: /Which breed is this/ })
+    first.unmount()
+    renderQuiz()
+    expect(await screen.findByRole('searchbox', { name: /Which breed is this/ })).toBeTruthy()
+  })
+
+  it('does not bring back a round you ended', async () => {
+    const first = renderQuiz()
+    startMedium()
+    await screen.findByRole('img', { name: 'A dog to identify' })
+    fireEvent.click(screen.getByRole('button', { name: 'End quiz' }))
+    first.unmount()
+    renderQuiz()
+    expect(screen.getByRole('heading', { name: 'What are we testing today?' })).toBeTruthy()
+  })
+
+  it('does not bring back a finished round, and a refresh on the results does not count it twice', async () => {
+    const first = renderQuiz()
+    await playRound(5)
+    await screen.findByRole('heading', { name: '5 of 10' })
+    await waitFor(async () => expect((await repo.getSettings()).quizStats.rounds).toBe(1))
+    first.unmount()
+    renderQuiz()
+    expect(screen.getByRole('heading', { name: 'What are we testing today?' })).toBeTruthy()
+    expect((await repo.getSettings()).quizStats.rounds).toBe(1)
+  })
+
+  it('Home says a round is in progress and offers to resume it', async () => {
+    const quiz = renderQuiz()
+    startMedium()
+    await screen.findByRole('img', { name: 'A dog to identify' })
+    quiz.unmount()
+    render(
+      <MemoryRouter>
+        <DataContext.Provider value={{ snapshot: snapshot(), settings: DEFAULT_SETTINGS }}>
+          <HomePage />
+        </DataContext.Provider>
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('You have a round in progress.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Resume' })).toHaveAttribute('href', '/quiz')
+  })
+
+  it('Home just says Play when there is no round in progress', () => {
+    render(
+      <MemoryRouter>
+        <DataContext.Provider value={{ snapshot: snapshot(), settings: DEFAULT_SETTINGS }}>
+          <HomePage />
+        </DataContext.Provider>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: 'Play' })).toBeTruthy()
+    expect(screen.queryByText('You have a round in progress.')).toBeNull()
+  })
+
+  it('answer links remember they came from the quiz', async () => {
+    renderQuiz()
+    startMedium()
+    const q = planned()[0]
+    await answerFirst(planned(), 0, true)
+    const link = await screen.findByRole('link', { name: new RegExp(`See ${breedsById[q.breedId].name.replace(/[()]/g, '\\$&')}`) })
+    expect(link).toHaveAttribute('href', `/dogdex/breed/${q.breedId}`)
+  })
+})
+
+describe('the way back from a breed page and the Log screen', () => {
+  const at = (ui: React.ReactNode, path: string, state?: unknown) =>
+    render(
+      <MemoryRouter initialEntries={[{ pathname: path, state }]}>
+        <DataContext.Provider value={{ snapshot: snapshot(), settings: DEFAULT_SETTINGS }}>
+          <Routes>
+            <Route path="/dogdex/breed/:breedId" element={ui} />
+            <Route path="/log" element={ui} />
+          </Routes>
+        </DataContext.Provider>
+      </MemoryRouter>,
+    )
+
+  it('a breed page opened from a quiz answer goes back to the quiz', () => {
+    at(<BreedPage />, '/dogdex/breed/beagle', { from: 'quiz' })
+    expect(screen.getByRole('link', { name: '← Back to quiz' })).toHaveAttribute('href', '/quiz')
+  })
+
+  it('a breed page opened any other way still goes back to the Dogdex', () => {
+    at(<BreedPage />, '/dogdex/breed/beagle')
+    expect(screen.getByRole('link', { name: '← Dogdex' })).toHaveAttribute('href', '/dogdex')
+  })
+
+  it('the Log screen opened from a quiz answer cancels back to the quiz', () => {
+    at(<LogPage />, '/log', { from: 'quiz' })
+    expect(screen.getByRole('link', { name: '← Back to quiz' })).toHaveAttribute('href', '/quiz')
+  })
+
+  it('the Log screen opened normally still says Cancel and goes Home', () => {
+    at(<LogPage />, '/log')
+    expect(screen.getByRole('link', { name: '← Cancel' })).toHaveAttribute('href', '/')
   })
 })
 

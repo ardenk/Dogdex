@@ -5,6 +5,7 @@ import { GoalRing } from '../../components/GoalRing'
 import { data } from '../../data'
 import { computeStats, evaluateBadges } from '../../domain/badges/engine'
 import { countThisWeek, goalMessage } from '../../domain/goals'
+import { hasQuizSession } from '../quiz/session'
 import { useData } from '../../storage/data-context'
 
 export function HomePage() {
@@ -16,6 +17,7 @@ export function HomePage() {
     for (const e of snapshot.encounters) m.set(e.dogId, (m.get(e.dogId) ?? 0) + 1)
     return m
   }, [snapshot.encounters])
+  const quizInProgress = hasQuizSession()
   const stats = useMemo(() => computeStats(snapshot, data.breeds, settings.quizStats), [snapshot, settings.quizStats])
   const nextBadge = useMemo(
     () =>
@@ -47,10 +49,10 @@ export function HomePage() {
       <section className="card row row--between" aria-labelledby="quiz-heading">
         <div>
           <h2 id="quiz-heading">Breed quiz</h2>
-          <p className="muted small">Name the breed from a photo. Ten questions, no timer.</p>
+          <p className="muted small">{quizInProgress ? 'You have a round in progress.' : 'Name the breed from a photo. Ten questions, no timer.'}</p>
         </div>
         <Link to="/quiz" className="btn btn--small">
-          Play
+          {quizInProgress ? 'Resume' : 'Play'}
         </Link>
       </section>
 
