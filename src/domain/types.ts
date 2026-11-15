@@ -114,15 +114,27 @@ export interface Snapshot {
   stickers: Sticker[]
 }
 
+/** Lifetime breed-quiz totals. Kept in the synced settings so they follow you between devices. */
+export interface QuizStats {
+  rounds: number
+  /** Questions answered across all rounds. */
+  answered: number
+  correct: number
+  /** Most right answers in a single round. */
+  best: number
+}
+
 export interface Settings {
   weeklyGoal: number
   locationMode: 'auto' | 'off'
   /** May a dog photo be sent to a cloud service to suggest its breed? Off until the user turns it on. */
   identifyPhotos: boolean
+  quizStats: QuizStats
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   weeklyGoal: 5,
   locationMode: 'auto',
   identifyPhotos: false,
+  quizStats: { rounds: 0, answered: 0, correct: 0, best: 0 },
 }

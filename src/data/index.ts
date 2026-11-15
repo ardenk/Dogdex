@@ -1,6 +1,7 @@
 import badges from './badges.json'
 import breeds from './breeds.json'
 import groups from './groups.json'
+import quizImages from './quizImages.json'
 import rarities from './rarity.json'
 import { parseData } from './schema'
 import type { Breed, Group, RarityTier } from './schema'
@@ -8,7 +9,7 @@ import type { Breed, Group, RarityTier } from './schema'
 export type { BadgeDef, BadgeRule, Breed, DogdexData, Group, RarityTier } from './schema'
 
 /** Validated once at startup. A typo in a data file fails loudly here, not deep in the UI. */
-export const data = parseData({ groups, rarities, breeds, badges })
+export const data = parseData({ groups, rarities, breeds, badges, quizImages })
 
 export const groupsById: Record<string, Group> = Object.fromEntries(data.groups.map((g) => [g.id, g]))
 export const raritiesById: Record<string, RarityTier> = Object.fromEntries(data.rarities.map((r) => [r.id, r]))
@@ -29,3 +30,9 @@ export const entryNumber: Record<string, number> = (() => {
 export function breedsInGroup(groupId: string): Breed[] {
   return data.breeds.filter((b) => b.groupId === groupId)
 }
+
+/** Dog CEO photo set per quizzable breed id, e.g. { beagle: 'beagle', 'afghan-hound': 'hound/afghan' }. */
+export const quizPaths: Record<string, string> = Object.fromEntries(data.quizImages.map((q) => [q.breedId, q.path]))
+
+/** How many Dog CEO photos each quizzable breed has. */
+export const quizPhotos: Record<string, number> = Object.fromEntries(data.quizImages.map((q) => [q.breedId, q.photos]))

@@ -16,7 +16,7 @@ export function HomePage() {
     for (const e of snapshot.encounters) m.set(e.dogId, (m.get(e.dogId) ?? 0) + 1)
     return m
   }, [snapshot.encounters])
-  const stats = useMemo(() => computeStats(snapshot, data.breeds), [snapshot])
+  const stats = useMemo(() => computeStats(snapshot, data.breeds, settings.quizStats), [snapshot, settings.quizStats])
   const nextBadge = useMemo(
     () =>
       evaluateBadges(data.badges, stats)
@@ -42,6 +42,16 @@ export function HomePage() {
           <h2 id="goal-heading">This week</h2>
           <p className="muted">{goalMessage(count, settings.weeklyGoal)}</p>
         </div>
+      </section>
+
+      <section className="card row row--between" aria-labelledby="quiz-heading">
+        <div>
+          <h2 id="quiz-heading">Breed quiz</h2>
+          <p className="muted small">Name the breed from a photo. Ten questions, no timer.</p>
+        </div>
+        <Link to="/quiz" className="btn btn--small">
+          Play
+        </Link>
       </section>
 
       <section className="stack" aria-labelledby="recent-heading">

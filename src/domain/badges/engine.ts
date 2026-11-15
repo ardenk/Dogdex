@@ -1,5 +1,5 @@
 import type { BadgeDef, Breed } from '../../data/schema'
-import type { Snapshot } from '../types'
+import type { QuizStats, Snapshot } from '../types'
 
 export interface Stats {
   totalDogs: number
@@ -11,10 +11,12 @@ export interface Stats {
   /** Group ids where every breed in the dataset has been logged. */
   completedGroupIds: string[]
   guessesCorrect: number
+  /** Right answers across every breed quiz round. */
+  quizCorrect: number
 }
 
 /** Pure: everything a badge rule might need, derived from the user's records and the breed dataset. */
-export function computeStats(snapshot: Snapshot, breeds: Breed[]): Stats {
+export function computeStats(snapshot: Snapshot, breeds: Breed[], quiz?: QuizStats): Stats {
   const byId = new Map(breeds.map((b) => [b.id, b]))
   const tagCounts: Record<string, number> = {}
   const rarityCounts: Record<string, number> = {}
@@ -42,6 +44,7 @@ export function computeStats(snapshot: Snapshot, breeds: Breed[]): Stats {
     loggedBreedIds,
     completedGroupIds,
     guessesCorrect: snapshot.guesses.filter((g) => g.correct === true).length,
+    quizCorrect: quiz?.correct ?? 0,
   }
 }
 
@@ -75,6 +78,10 @@ export function evaluateBadge(badge: BadgeDef, stats: Stats): BadgeProgress {
       break
     case 'guess_correct_count':
       current = stats.guessesCorrect
+      target = rule.gte
+      break
+    case 'quiz_correct_count':
+      current = stats.quizCorrect
       target = rule.gte
       break
   }

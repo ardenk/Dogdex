@@ -1,5 +1,6 @@
 import { isGuessCorrect } from '../domain/guess'
 import { newId } from '../domain/id'
+import { readQuizStats } from '../domain/quiz'
 import { DEFAULT_SETTINGS, MAX_PHOTOS_PER_DOG, MAX_STICKERS_PER_DOG } from '../domain/types'
 import type { Dog, Encounter, Guess, Photo, Settings, Snapshot, Sticker } from '../domain/types'
 import { isGiphyUrl } from '../services/giphy/validate'
@@ -265,6 +266,7 @@ export function createLocalRepo(db: DogdexDB = defaultDb): Repository {
         if (r.key === 'weeklyGoal' && typeof r.value === 'number') out.weeklyGoal = r.value
         if (r.key === 'locationMode' && (r.value === 'auto' || r.value === 'off')) out.locationMode = r.value
         if (r.key === 'identifyPhotos' && typeof r.value === 'boolean') out.identifyPhotos = r.value
+        if (r.key === 'quizStats') out.quizStats = readQuizStats(r.value)
       }
       return out
     },

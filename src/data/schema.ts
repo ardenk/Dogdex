@@ -41,12 +41,21 @@ export const breedSchema = z.object({
   tags: z.array(z.string()),
 })
 
+/** Which Dog CEO (dog.ceo) photo set shows a breed, for the quiz: "hound/afghan" or "beagle". See scripts/map-quiz-breeds.ts. */
+export const quizImageSchema = z.object({
+  breedId: z.string().min(1),
+  path: z.string().regex(/^[a-z]+(\/[a-z]+)?$/, 'a Dog CEO path like "beagle" or "hound/afghan"'),
+  /** How many photos Dog CEO has for this breed. Breeds with very few are asked about less often (see domain/quiz.ts). */
+  photos: z.number().int().positive(),
+})
+
 export const badgeRuleSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('total_dogs'), gte: z.number().int().positive() }),
   z.object({ type: z.literal('tag_count'), tag: z.string().min(1), gte: z.number().int().positive() }),
   z.object({ type: z.literal('group_complete'), excludeGroups: z.array(z.string()).default([]) }),
   z.object({ type: z.literal('rarity_count'), rarity: z.string().min(1), gte: z.number().int().positive() }),
   z.object({ type: z.literal('guess_correct_count'), gte: z.number().int().positive() }),
+  z.object({ type: z.literal('quiz_correct_count'), gte: z.number().int().positive() }),
 ])
 
 export const badgeSchema = z.object({
@@ -57,6 +66,7 @@ export const badgeSchema = z.object({
   rule: badgeRuleSchema,
 })
 
+export type QuizImage = z.infer<typeof quizImageSchema>
 export type Group = z.infer<typeof groupSchema>
 export type RarityTier = z.infer<typeof raritySchema>
 export type Breed = z.infer<typeof breedSchema>
@@ -68,6 +78,8 @@ export interface DogdexData {
   rarities: RarityTier[]
   breeds: Breed[]
   badges: BadgeDef[]
+  /** Breeds the quiz can ask about, with where their photos come from. */
+  quizImages: QuizImage[]
 }
 
 /** Validates the raw JSON and checks cross-references (e.g. a breed's group exists). Throws with a readable message. */
@@ -76,11 +88,13 @@ export function parseData(raw: {
   rarities: unknown
   breeds: unknown
   badges: unknown
+  quizImages?: unknown
 }): DogdexData {
   const groups = z.array(groupSchema).parse(raw.groups)
   const rarities = z.array(raritySchema).parse(raw.rarities)
   const breeds = z.array(breedSchema).parse(raw.breeds)
   const badges = z.array(badgeSchema).parse(raw.badges)
+  const quizImages = z.array(quizImageSchema).parse(raw.quizImages ?? [])
 
   const errors: string[] = []
   const unique = (label: string, ids: string[]) => {
@@ -108,6 +122,13 @@ export function parseData(raw: {
     if (!groupIds.has(b.groupId)) errors.push(`Breed "${b.id}" has unknown group "${b.groupId}"`)
     if (!rarityIds.has(b.rarity)) errors.push(`Breed "${b.id}" has unknown rarity "${b.rarity}"`)
   }
+  const breedIds = new Set(breeds.map((b) => b.id))
+  const quizSeen = new Set<string>()
+  for (const q of quizImages) {
+    if (!breedIds.has(q.breedId)) errors.push(`Quiz image for unknown breed "${q.breedId}"`)
+    if (quizSeen.has(q.breedId)) errors.push(`Duplicate quiz image entry for breed "${q.breedId}"`)
+    quizSeen.add(q.breedId)
+  }
   for (const badge of badges) {
     const r = badge.rule
     if (r.type === 'rarity_count' && !rarityIds.has(r.rarity))
@@ -123,5 +144,6 @@ export function parseData(raw: {
     rarities: [...rarities].sort((a, b) => a.order - b.order),
     breeds,
     badges,
+    quizImages,
   }
 }

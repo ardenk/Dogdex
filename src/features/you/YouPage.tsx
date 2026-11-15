@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router'
 import { useToast } from '../../components/toast-context'
 import { guessAccuracy } from '../../domain/guess'
 import { exportBackup, importBackup } from '../../storage/backup'
@@ -90,6 +91,26 @@ export function YouPage() {
             <p className="muted small">Filled dots are right guesses. Most recent on the right.</p>
           </>
         )}
+      </section>
+
+      <section className="card stack" aria-labelledby="quiz-stats">
+        <h2 id="quiz-stats">Breed quiz</h2>
+        {settings.quizStats.rounds === 0 ? (
+          <p className="muted">No rounds yet. Name the breed from a photo, ten questions at a time.</p>
+        ) : (
+          <>
+            <p>
+              <strong className="mono" style={{ fontSize: '1.6rem' }}>{settings.quizStats.correct}</strong>{' '}
+              <span className="muted">of {settings.quizStats.answered} answers right</span>
+            </p>
+            <p className="muted small">
+              {settings.quizStats.rounds} {settings.quizStats.rounds === 1 ? 'round' : 'rounds'} played. Best round: {settings.quizStats.best} right.
+            </p>
+          </>
+        )}
+        <Link to="/quiz" className="btn">
+          {settings.quizStats.rounds === 0 ? 'Play a round' : 'Play again'}
+        </Link>
       </section>
 
       <section className="card stack" aria-labelledby="goal-set">

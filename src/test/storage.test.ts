@@ -67,13 +67,17 @@ describe('local repository', () => {
   })
   it('reads back every setting it saves (a setting missing from getSettings silently resets to its default)', async () => {
     expect((await repo.getSettings()).identifyPhotos).toBe(false) // off until the user opts in
-    const changed = { weeklyGoal: 9, locationMode: 'off', identifyPhotos: true } as const
+    const changed = { weeklyGoal: 9, locationMode: 'off', identifyPhotos: true, quizStats: { rounds: 2, answered: 20, correct: 14, best: 9 } } as const
     // Every setting the app has must appear here, so adding one without teaching getSettings about it fails this test.
     expect(Object.keys(changed).sort()).toEqual(Object.keys(DEFAULT_SETTINGS).sort())
     for (const [key, value] of Object.entries(changed)) await repo.setSetting(key as keyof Settings, value)
     expect(await repo.getSettings()).toEqual(changed)
     await repo.setSetting('identifyPhotos', false)
     expect((await repo.getSettings()).identifyPhotos).toBe(false)
+  })
+  it('ignores damaged quiz totals instead of trusting them', async () => {
+    await repo.setSetting('quizStats', { rounds: -3, answered: 'lots' } as never)
+    expect((await repo.getSettings()).quizStats).toEqual({ rounds: 0, answered: 0, correct: 0, best: 0 })
   })
   it('never stores raw coordinates, only the rounded cell', async () => {
     await repo.logSighting({ breedId: 'beagle', metAt: 1, placeLabel: 'Tribeca', geoCell: '40.72,-74.01' })

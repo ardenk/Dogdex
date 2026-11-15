@@ -75,6 +75,7 @@ parseData({
   rarities: readJson(here('../src/data/rarity.json')),
   breeds,
   badges: readJson(here('../src/data/badges.json')),
+  quizImages: readJson(here('../src/data/quizImages.json')),
 })
 
 if (dry) {

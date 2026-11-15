@@ -9,6 +9,7 @@ import { DogdexPage } from './features/dogdex/DogdexPage'
 import { GroupPage } from './features/dogdex/GroupPage'
 import { HomePage } from './features/home/HomePage'
 import { LogPage } from './features/log/LogPage'
+import { QuizPage } from './features/quiz/QuizPage'
 import { YouPage } from './features/you/YouPage'
 import { DataProvider } from './storage/DataProvider'
 import { SyncProvider } from './sync/SyncProvider'
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="*" element={<main className="page"><h1>Not found</h1></main>} />
             </Route>
             <Route path="log" element={<LogPage />} />
+            <Route path="quiz" element={<QuizPage />} />
           </Routes>
           </SyncProvider>
         </DataProvider>

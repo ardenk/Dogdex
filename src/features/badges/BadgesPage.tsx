@@ -5,8 +5,8 @@ import { formatDate } from '../../domain/format'
 import { useData } from '../../storage/data-context'
 
 export function BadgesPage() {
-  const { snapshot } = useData()
-  const progress = useMemo(() => evaluateBadges(data.badges, computeStats(snapshot, data.breeds)), [snapshot])
+  const { snapshot, settings } = useData()
+  const progress = useMemo(() => evaluateBadges(data.badges, computeStats(snapshot, data.breeds, settings.quizStats)), [snapshot, settings.quizStats])
   const awardedAt = new Map(snapshot.awards.map((a) => [a.badgeId, a.earnedAt]))
   const earnedCount = progress.filter((p) => p.earned).length
 

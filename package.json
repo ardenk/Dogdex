@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "validate:data": "node scripts/validate-data.ts",
     "import:breeds": "node --env-file=.env scripts/import-breeds.ts",
+    "map:quiz": "node scripts/map-quiz-breeds.ts",
     "typecheck": "tsc -b",
     "dev:phone": "DOGDEX_HTTPS=1 vite --host",
     "check": "npm run typecheck && npm run lint && npm run validate:data && npm test"

@@ -40,5 +40,12 @@
     "description": "Correctly guess ten breeds before the reveal.",
     "glyph": "?",
     "rule": { "type": "guess_correct_count", "gte": 10 }
+  },
+  {
+    "id": "quiz-whiz",
+    "name": "Quiz whiz",
+    "description": "Answer 25 breed quiz questions correctly.",
+    "glyph": "Q",
+    "rule": { "type": "quiz_correct_count", "gte": 25 }
   }
 ]
