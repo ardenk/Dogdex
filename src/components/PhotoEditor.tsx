@@ -51,87 +51,77 @@ export function PhotoEditor({ dog, photoId, stickers, selected, onSelect, onOpen
     onDeleted()
   }
 
+  // With a sticker selected, only its controls show: the photo's own controls come back when it is deselected (tap the photo, or remove it).
   return (
     <section className="card stack" aria-labelledby="edit-photo-heading">
-      <h2 id="edit-photo-heading">Edit photo</h2>
+      <h2 id="edit-photo-heading">{selected ? 'Edit sticker' : 'Edit photo'}</h2>
 
-      <button type="button" className="btn btn--block" onClick={() => setFraming((v) => !v)} aria-expanded={framing}>
-        Adjust framing
-      </button>
-      {framing && <PhotoFraming key={photoId} photoId={photoId} onDone={() => setFraming(false)} />}
-
-      <div className="row">
-        <button type="button" className="btn grow" onClick={makeCover} disabled={isCover}>
-          {isCover ? '★ Cover photo' : 'Make cover'}
-        </button>
-        <button type="button" className="btn btn--danger grow" onClick={remove}>
-          Delete photo
-        </button>
-      </div>
-      <p className="muted small">The cover photo is the one shown on the Dogdex, in lists and on share cards.</p>
-
-      <div className="stack" role="group" aria-labelledby="stickers-heading">
-        <div className="row row--between">
-          <h3 id="stickers-heading">Stickers on this photo</h3>
-          <span className="mono small">
-            {stickers.length}/{MAX_STICKERS_PER_PHOTO}
-          </span>
-        </div>
-
-        {selected ? (
-          <div className="stack">
-            <div className="field">
-              <label htmlFor="sticker-size">Size</label>
-              <input
-                id="sticker-size"
-                type="range"
-                min={5}
-                max={100}
-                step={1}
-                value={Math.round(selected.scale * 100)}
-                onChange={(e) => repo.updateSticker(selected.id, { scale: Number(e.target.value) / 100 })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="sticker-rotate">Rotate</label>
-              <input
-                id="sticker-rotate"
-                type="range"
-                min={-180}
-                max={180}
-                step={5}
-                value={Math.round(selected.rotation)}
-                onChange={(e) => repo.updateSticker(selected.id, { rotation: Number(e.target.value) })}
-              />
-            </div>
-            <div className="row">
-              <button type="button" className="btn grow" onClick={() => repo.updateSticker(selected.id, { toFront: true })}>
-                Bring to front
-              </button>
-              <button
-                type="button"
-                className="btn btn--danger grow"
-                onClick={async () => {
-                  await repo.removeSticker(selected.id)
-                  onSelect(null)
-                }}
-              >
-                Remove
-              </button>
-            </div>
+      {selected ? (
+        <div className="stack">
+          <div className="field">
+            <label htmlFor="sticker-size">Size</label>
+            <input
+              id="sticker-size"
+              type="range"
+              min={5}
+              max={100}
+              step={1}
+              value={Math.round(selected.scale * 100)}
+              onChange={(e) => repo.updateSticker(selected.id, { scale: Number(e.target.value) / 100 })}
+            />
           </div>
-        ) : (
-          <>
-            {/* Adding is for when nothing is selected above: with a sticker selected, these controls are for that sticker. */}
+          <div className="field">
+            <label htmlFor="sticker-rotate">Rotate</label>
+            <input
+              id="sticker-rotate"
+              type="range"
+              min={-180}
+              max={180}
+              step={5}
+              value={Math.round(selected.rotation)}
+              onChange={(e) => repo.updateSticker(selected.id, { rotation: Number(e.target.value) })}
+            />
+          </div>
+          <div className="row">
+            <button type="button" className="btn grow" onClick={() => repo.updateSticker(selected.id, { toFront: true })}>
+              Bring to front
+            </button>
+            <button
+              type="button"
+              className="btn btn--danger grow"
+              onClick={async () => {
+                await repo.removeSticker(selected.id)
+                onSelect(null)
+              }}
+            >
+              Remove
+            </button>
+          </div>
+          <p className="muted small">Drag the sticker to move it. Tap the photo outside the sticker when you are finished with it.</p>
+        </div>
+      ) : (
+        <>
+          <div className="photo-actions">
+            <button type="button" className="btn" onClick={makeCover} disabled={isCover}>
+              {isCover ? '★ Cover photo' : 'Make cover'}
+            </button>
             <button type="button" className="btn" onClick={onOpenPicker} disabled={stickers.length >= MAX_STICKERS_PER_PHOTO}>
               Add a sticker
             </button>
-            <p className="muted small">
-              {stickers.length ? 'Tap a sticker to select it. Drag with one finger to move it; pinch and twist with two fingers to resize and rotate. Arrow keys also move it.' : 'Pick a sticker, then drag it where you want it on the photo.'}
-            </p>
-          </>
-        )}
-      </div>
+            <button type="button" className="btn" onClick={() => setFraming((v) => !v)} aria-expanded={framing}>
+              Adjust framing
+            </button>
+            <button type="button" className="btn btn--danger" onClick={remove}>
+              Delete photo
+            </button>
+          </div>
+          {framing && <PhotoFraming key={photoId} photoId={photoId} onDone={() => setFraming(false)} />}
+          <p className="muted small">
+            {stickers.length}/{MAX_STICKERS_PER_PHOTO} stickers on this photo.{' '}
+            {stickers.length ? 'Tap one to select it, then drag to move it; pinch and twist to resize and rotate. ' : ''}The cover photo is the one shown on the Dogdex, in lists and on share cards.
+          </p>
+        </>
+      )}
 
       <div className="row">
         <button type="button" className="btn grow" onClick={onCancel}>

@@ -194,15 +194,18 @@ export function DogPage() {
         )}
       </div>
 
-      <PhotoStrip
-        photoIds={photoIds}
-        selectedId={shownId}
-        coverId={dog.primaryPhotoId}
-        onSelect={choosePhoto}
-        onAdd={() => setPhotoPanel((p) => (p === 'add' ? 'none' : 'add'))}
-        adding={photoPanel === 'add'}
-        canAdd={photoIds.length < MAX_PHOTOS_PER_DOG}
-      />
+      {/* The strip is hidden while editing: the edit controls are for the photo shown, and switching photos mid-edit would be confusing. */}
+      {!editingPhoto && (
+        <PhotoStrip
+          photoIds={photoIds}
+          selectedId={shownId}
+          coverId={dog.primaryPhotoId}
+          onSelect={choosePhoto}
+          onAdd={() => setPhotoPanel((p) => (p === 'add' ? 'none' : 'add'))}
+          adding={photoPanel === 'add'}
+          canAdd={photoIds.length < MAX_PHOTOS_PER_DOG}
+        />
+      )}
 
       {/* The controls open right under the photo, so the photo and the controls are on screen together. */}
       {photoPanel === 'add' && (

@@ -145,25 +145,34 @@ describe('adding a photo: upload options only', () => {
 })
 
 describe('editing the photo shown', () => {
-  it('Edit opens the controls right under the strip, before the dog’s name, and hides the Edit button', async () => {
+  it('Edit opens the controls right under the photo, before the dog’s name, and hides the Edit button and the thumbnails', async () => {
     await page()
-    await screen.findByAltText(/King, photo 1 of 2/)
+    const photo = await screen.findByAltText(/King, photo 1 of 2/)
+    expect(screen.getByRole('list', { name: 'Photos of this dog' })).toBeTruthy()
     fireEvent.click(editButton()!)
     const frame = await screen.findByRole('heading', { level: 2, name: 'Edit photo' })
-    expect(before(screen.getByRole('list', { name: 'Photos of this dog' }), frame)).toBe(true)
+    expect(before(photo, frame)).toBe(true)
     expect(before(frame, name())).toBe(true)
     expect(before(frame, screen.getByRole('button', { name: 'Met again' }))).toBe(true)
     expect(editButton()).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Photos of this dog' })).toBeNull() // no thumbnails while editing
+    expect(screen.queryByRole('button', { name: 'Add a photo' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(await screen.findByRole('list', { name: 'Photos of this dog' })).toBeTruthy() // and they come back
   })
 
-  it('has framing, cover, delete and stickers together, with Cancel and Done', async () => {
+  it('has cover, sticker, framing and delete together, in that order, with Cancel and Done', async () => {
     await page()
     await screen.findByAltText(/King, photo 1 of 2/)
     fireEvent.click(editButton()!)
     await screen.findByRole('heading', { level: 2, name: 'Edit photo' })
-    for (const label of ['Adjust framing', 'Delete photo', 'Add a sticker', 'Cancel', 'Done']) expect(screen.getByRole('button', { name: label })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '★ Cover photo' })).toBeDisabled() // photo 1 is the cover
-    expect(screen.getByRole('heading', { level: 3, name: 'Stickers on this photo' })).toBeTruthy()
+    const order = ['★ Cover photo', 'Add a sticker', 'Adjust framing', 'Delete photo']
+    const buttons = order.map((label) => screen.getByRole('button', { name: label }))
+    expect(buttons[0]).toBeDisabled() // photo 1 is the cover
+    for (let i = 1; i < buttons.length; i++) expect(before(buttons[i - 1], buttons[i])).toBe(true)
+    expect(buttons[0].parentElement).toBe(buttons[3].parentElement) // one group
+    expect(screen.getByText(/0\/8 stickers on this photo/)).toBeTruthy()
+    for (const label of ['Cancel', 'Done']) expect(screen.getByRole('button', { name: label })).toBeTruthy()
     // Taking photos is a separate step: not here.
     expect(screen.queryByRole('button', { name: 'Take photo' })).toBeNull()
   })
@@ -178,16 +187,6 @@ describe('editing the photo shown', () => {
       await waitFor(() => expect(screen.queryByRole('heading', { level: 2, name: 'Edit photo' })).toBeNull())
       expect(editButton()).toBeTruthy()
     }
-  })
-
-  it('opening the "+" tile while editing swaps the edit controls for the add-a-photo ones', async () => {
-    await page()
-    await screen.findByAltText(/King, photo 1 of 2/)
-    fireEvent.click(editButton()!)
-    await screen.findByRole('heading', { level: 2, name: 'Edit photo' })
-    fireEvent.click(addTile())
-    expect(await screen.findByRole('heading', { level: 2, name: 'Add a photo' })).toBeTruthy()
-    expect(screen.queryByRole('heading', { level: 2, name: 'Edit photo' })).toBeNull()
   })
 
   it('Make cover and Delete work on the photo being edited', async () => {
@@ -253,14 +252,32 @@ describe('stickers sit on one photo', () => {
     await repo.addSticker(dog.id, { ...sticker, photoId: ids[0], giphyId: 'b' })
     await screen.findByAltText(/King, photo 1 of 2/)
     await waitFor(() => expect(hero().querySelectorAll('.sticker')).toHaveLength(2))
-    fireEvent.click(screen.getByRole('button', { name: 'Photo 2 of 2' }))
+    fireEvent.click(editButton()!)
+    expect(await screen.findByText(/2\/8 stickers on this photo/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Photo 2 of 2' }))
     await screen.findByAltText(/King, photo 2 of 2/)
     expect(hero().querySelectorAll('.sticker')).toHaveLength(0)
     fireEvent.click(editButton()!)
-    await screen.findByRole('heading', { level: 3, name: 'Stickers on this photo' })
-    expect(screen.getByText('0/8')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Photo 1 of 2, cover photo' }))
-    await waitFor(() => expect(screen.getByText('2/8')).toBeTruthy())
+    expect(await screen.findByText(/0\/8 stickers on this photo/)).toBeTruthy()
+  })
+
+  it('with a sticker selected, only the sticker controls show; deselecting brings the photo controls back', async () => {
+    const { dog, ids } = await page()
+    const placed = await repo.addSticker(dog.id, { ...sticker, photoId: ids[0] })
+    await screen.findByAltText(/King, photo 1 of 2/)
+    fireEvent.click(editButton()!)
+    await screen.findByRole('heading', { level: 2, name: 'Edit photo' })
+    fireEvent.keyDown(await screen.findByRole('button', { name: /Happy dog/ }), { key: 'Enter' })
+    expect(await screen.findByRole('heading', { level: 2, name: 'Edit sticker' })).toBeTruthy()
+    for (const label of ['Make cover', '★ Cover photo', 'Add a sticker', 'Adjust framing', 'Delete photo']) expect(screen.queryByRole('button', { name: label })).toBeNull()
+    expect(screen.getByLabelText('Size')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Bring to front' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByRole('button', { name: 'Add a sticker' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Adjust framing' })).toBeTruthy()
+    expect((await liveStickers(dog.id)).find((s) => s.id === placed.id)).toBeUndefined()
   })
 
   it('stickers stay on their photo when the cover changes', async () => {
