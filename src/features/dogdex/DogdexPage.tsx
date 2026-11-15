@@ -1,22 +1,28 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
-import { PhotoStack } from '../../components/PhotoStack'
-import { RarityMark } from '../../components/RarityMark'
-import { Silhouette } from '../../components/Silhouette'
-import { breedsById, breedsInGroup, data, entryNumber, groupsById } from '../../data'
-import { entryLabel } from '../../domain/format'
+import { Link, useSearchParams } from 'react-router'
+import { useToast } from '../../components/toast-context'
+import { breedsById, data } from '../../data'
 import { customBreedsNowListed } from '../../domain/customBreeds'
-import { stackPhotoIds } from '../../domain/photos'
+import { groupTiles, indexDogs, searchTiles, uncategorizedTiles } from '../../domain/dogdexTiles'
 import { resolveBreedId } from '../../services/identify'
 import { useData } from '../../storage/data-context'
 import { repo } from '../../storage/localRepo'
-import { useToast } from '../../components/toast-context'
+import { BreedTileCard } from './BreedTileCard'
+import { DogdexSearch } from './DogdexSearch'
+
+/** How many cards a category shows on the Dogdex page: one row of the three-column grid. */
+const PREVIEW = 3
 
 export function DogdexPage() {
   const { snapshot } = useData()
   const toast = useToast()
+  const [params, setParams] = useSearchParams()
+  const query = params.get('q') ?? ''
   const [filter, setFilter] = useState<'all' | 'logged'>('all')
   const [dismissed, setDismissed] = useState<string[]>([])
+
+  const index = useMemo(() => indexDogs(snapshot.dogs), [snapshot.dogs])
+  const setQuery = (q: string) => setParams(q ? { q } : {}, { replace: true })
 
   /** Typed-in breeds that are now real entries: offered a one-tap move, never moved automatically. */
   const nowListed = useMemo(
@@ -32,36 +38,11 @@ export function DogdexPage() {
     }
   }
 
-  const dogCount = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const d of snapshot.dogs) if (d.breedId) m.set(d.breedId, (m.get(d.breedId) ?? 0) + 1)
-    return m
-  }, [snapshot.dogs])
-
-  /** Photos to stack on each breed's tile, newest dog on top. Keyed by breed id. */
-  const photosByBreed = useMemo(() => {
-    const byBreed = new Map<string, typeof snapshot.dogs>()
-    for (const d of snapshot.dogs) if (d.breedId) byBreed.set(d.breedId, [...(byBreed.get(d.breedId) ?? []), d])
-    return new Map([...byBreed].map(([id, dogs]) => [id, stackPhotoIds(dogs)]))
-  }, [snapshot])
-
-  /** Breeds typed in by the user, each filed under a group or left in "Other breeds". */
-  const custom = useMemo(() => {
-    const m = new Map<string, { label: string; count: number; groupId?: string; dogs: typeof snapshot.dogs }>()
-    for (const d of snapshot.dogs) {
-      if (d.breedId || !d.customBreedLabel) continue
-      const cur = m.get(d.customBreedLabel) ?? { label: d.customBreedLabel, count: 0, dogs: [] }
-      cur.count += 1
-      cur.dogs.push(d)
-      cur.groupId ??= d.customGroupId
-      m.set(d.customBreedLabel, cur)
-    }
-    return [...m.values()].map((c) => ({ ...c, photoIds: stackPhotoIds(c.dogs) })).sort((a, b) => a.label.localeCompare(b.label))
-  }, [snapshot.dogs])
-  const customIn = (groupId: string) => custom.filter((c) => c.groupId === groupId)
-  const ungrouped = custom.filter((c) => !c.groupId || !groupsById[c.groupId])
-
-  const totalLogged = data.breeds.filter((b) => dogCount.has(b.id)).length
+  const totalLogged = data.breeds.filter((b) => index.byBreed.has(b.id)).length
+  const searching = query.trim().length > 0
+  const results = useMemo(() => (searching ? searchTiles(data.breeds, index, query) : []), [searching, index, query])
+  const shownResults = filter === 'logged' ? results.filter((t) => t.count > 0) : results
+  const other = useMemo(() => uncategorizedTiles(index, data.groups.map((g) => g.id)), [index])
 
   return (
     <main className="page">
@@ -82,6 +63,8 @@ export function DogdexPage() {
         </div>
       </header>
 
+      <DogdexSearch value={query} onChange={setQuery} />
+
       {nowListed.map((n) => (
         <section key={n.label} className="card stack" aria-label={`${n.label} is now listed`}>
           <p>
@@ -99,87 +82,84 @@ export function DogdexPage() {
         </section>
       ))}
 
-      {data.groups.map((group) => {
-        const breeds = breedsInGroup(group.id)
-        const metCount = breeds.filter((b) => dogCount.has(b.id)).length
-        const shown = filter === 'logged' ? breeds.filter((b) => dogCount.has(b.id)) : breeds
-        const extra = customIn(group.id)
-        if (shown.length === 0 && extra.length === 0) return null
-        return (
-          // Groups with a breed you've met (and the "Met" filter) start open; the rest start folded so a long list stays scannable.
-          <details key={group.id} className="group" open={metCount > 0 || extra.length > 0 || filter === 'logged'}>
-            <summary className="group-head">
-              <h2 id={`group-${group.id}`}>{group.name}</h2>
-              <span className="mono small" aria-label={`${metCount} of ${breeds.length} met`}>
-                {metCount}/{breeds.length}
-                {metCount === breeds.length && group.id !== 'mixed' ? ' ✓' : ''}
-              </span>
-            </summary>
+      {searching ? (
+        <section aria-label="Search results">
+          <p className="muted small" role="status">
+            {shownResults.length === 0 ? `No breed matches “${query.trim()}”.` : `${shownResults.length} ${shownResults.length === 1 ? 'match' : 'matches'}`}
+          </p>
+          {shownResults.length > 0 && (
             <ul className="breed-grid">
-              {shown.map((b) => {
-                const n = dogCount.get(b.id) ?? 0
-                const photos = photosByBreed.get(b.id) ?? []
-                return (
-                  <li key={b.id}>
-                    <Link
-                      to={`/dogdex/breed/${b.id}`}
-                      className={`breed-card ${n ? 'breed-card--logged' : ''}`}
-                      aria-label={`${b.name}, ${entryLabel(entryNumber[b.id])}, ${n ? `${n} met` : 'not met yet'}`}
-                    >
-                      {n > 0 && <span className="breed-card__count" aria-hidden="true">{n}</span>}
-                      <span className="breed-card__art">
-                        {photos.length > 0 ? <PhotoStack photoIds={photos} /> : <Silhouette variant={group.id} />}
-                      </span>
-                      <span className="breed-card__no" aria-hidden="true">{entryLabel(entryNumber[b.id])}</span>
-                      <span className="breed-card__name" aria-hidden="true">{b.name}</span>
-                      <span aria-hidden="true"><RarityMark rarity={b.rarity} /></span>
-                    </Link>
-                  </li>
-                )
-              })}
-              {extra.map((c) => (
-                <li key={`custom-${c.label}`}>
-                  <Link
-                    to={`/dogdex/other/${encodeURIComponent(c.label)}`}
-                    className="breed-card breed-card--logged"
-                    aria-label={`${c.label}, custom breed, ${c.count} met`}
-                  >
-                    <span className="breed-card__count" aria-hidden="true">{c.count}</span>
-                    <span className="breed-card__art">
-                      {c.photoIds.length > 0 ? <PhotoStack photoIds={c.photoIds} /> : <Silhouette variant={group.id} />}
-                    </span>
-                    <span className="breed-card__no" aria-hidden="true">Added by you</span>
-                    <span className="breed-card__name" aria-hidden="true">{c.label}</span>
-                  </Link>
+              {shownResults.map((t) => (
+                <li key={t.key}>
+                  <BreedTileCard tile={t} />
                 </li>
               ))}
             </ul>
-          </details>
-        )
-      })}
-
-      {ungrouped.length > 0 && (
-        <section aria-labelledby="group-other">
-          <div className="group-head">
-            <h2 id="group-other">Other breeds</h2>
-          </div>
-          <ul className="stack">
-            {ungrouped.map((c) => (
-              <li key={c.label}>
-                <Link to={`/dogdex/other/${encodeURIComponent(c.label)}`} className="dog-row">
-                  <span className="grow dog-row__title">{c.label}</span>
-                  <span className="mono small">{c.count} met</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          )}
         </section>
-      )}
+      ) : (
+        <>
+          {data.groups.map((group) => {
+            const all = groupTiles(data.breeds, group.id, index)
+            const listedTotal = data.breeds.filter((b) => b.groupId === group.id).length
+            const metCount = data.breeds.filter((b) => b.groupId === group.id && index.byBreed.has(b.id)).length
+            const tiles = filter === 'logged' ? all.filter((t) => t.count > 0) : all
+            if (tiles.length === 0) return null
+            const more = tiles.length - PREVIEW
+            return (
+              <section key={group.id} className="group" aria-labelledby={`group-${group.id}`}>
+                <Link
+                  to={`/dogdex/group/${group.id}`}
+                  className="group-head"
+                  aria-label={`${group.name}, ${metCount} of ${listedTotal} met. See all ${group.name} breeds`}
+                >
+                  <h2 id={`group-${group.id}`}>{group.name}</h2>
+                  <span className="mono small group-head__meta">
+                    {metCount}/{listedTotal}
+                    {metCount === listedTotal && group.id !== 'mixed' ? ' ✓' : ''}
+                    <span className="group-head__chevron" aria-hidden="true" />
+                  </span>
+                </Link>
+                <ul className="breed-grid">
+                  {tiles.slice(0, PREVIEW).map((t) => (
+                    <li key={t.key}>
+                      <BreedTileCard tile={t} />
+                    </li>
+                  ))}
+                </ul>
+                {more > 0 && (
+                  <Link to={`/dogdex/group/${group.id}`} className="group-more" aria-hidden="true" tabIndex={-1}>
+                    See all {tiles.length} →
+                  </Link>
+                )}
+              </section>
+            )
+          })}
 
-      {filter === 'logged' && totalLogged === 0 && custom.length === 0 && (
-        <div className="card">
-          <p>No dogs yet. Tap the + button to log your first one.</p>
-        </div>
+          {other.length > 0 && (
+            <section aria-labelledby="group-other">
+              <div className="group-head group-head--static">
+                <h2 id="group-other">Other breeds</h2>
+              </div>
+              <ul className="stack">
+                {other.map((t) => (
+                  <li key={t.key}>
+                    <Link to={t.href} className="dog-row">
+                      <span className="grow dog-row__title">{t.name}</span>
+                      <span className="mono small">{t.count} met</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {filter === 'logged' && totalLogged === 0 && index.byLabel.size === 0 && (
+            <div className="card">
+              <p>No dogs yet. Tap the + button to log your first one.</p>
+            </div>
+          )}
+        </>
       )}
     </main>
   )

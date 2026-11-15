@@ -6,6 +6,7 @@ import { BadgesPage } from './features/badges/BadgesPage'
 import { BreedPage, CustomBreedPage } from './features/breed/BreedPage'
 import { DogPage } from './features/dog/DogPage'
 import { DogdexPage } from './features/dogdex/DogdexPage'
+import { GroupPage } from './features/dogdex/GroupPage'
 import { HomePage } from './features/home/HomePage'
 import { LogPage } from './features/log/LogPage'
 import { YouPage } from './features/you/YouPage'
@@ -34,6 +35,7 @@ export default function App() {
             <Route element={<TabLayout />}>
               <Route index element={<HomePage />} />
               <Route path="dogdex" element={<DogdexPage />} />
+              <Route path="dogdex/group/:groupId" element={<GroupPage />} />
               <Route path="dogdex/breed/:breedId" element={<BreedPage />} />
               <Route path="dogdex/other/:label" element={<CustomBreedPage />} />
               <Route path="dog/:dogId" element={<DogPage />} />

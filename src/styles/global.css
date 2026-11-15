@@ -305,7 +305,7 @@ textarea.input { min-height: 88px; resize: vertical; }
   background: var(--paper-sunk);
 }
 
-.pick-group::-webkit-details-marker, .group-head::-webkit-details-marker { display: none; }
+.pick-group::-webkit-details-marker { display: none; }
 .pick-section + .pick-section .pick-group { border-top: 1.5px solid var(--paper); }
 /* The fold arrow is decoration: the empty alt text keeps screen readers from announcing it (details/summary already says open or closed). */
 .pick-group::before { content: '▸' / ''; margin-right: 8px; }
@@ -313,20 +313,20 @@ textarea.input { min-height: 88px; resize: vertical; }
 .pick-group span:first-child { flex: 1; }
 
 /* ---------- Dogdex grid ---------- */
-.group { margin-bottom: 4px; }
+/* A category: its name and progress (a link to the whole category), then one row of cards. */
 .group-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   min-height: var(--tap);
   margin-bottom: 8px;
-  cursor: pointer;
-  list-style: none;
+  color: inherit;
+  text-decoration: none;
 }
-.group:not([open]) > .group-head { margin-bottom: 0; }
-.group-head h2 { display: flex; align-items: baseline; }
-.group-head h2::before { content: '▸' / ''; width: 1.1em; font-size: 0.8em; }
-.group[open] > .group-head h2::before { content: '▾' / ''; }
+.group-head--static { cursor: default; }
+.group-head__meta { display: inline-flex; align-items: center; gap: 8px; }
+.group-head__chevron::before { content: '›'; font-size: 1.6rem; line-height: 1; color: var(--accent); }
+.group-more { display: inline-block; margin-top: 8px; font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent); text-decoration: none; }
 .breed-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .breed-card {
   position: relative;
@@ -577,7 +577,6 @@ textarea.input { min-height: 88px; resize: vertical; }
 .hero > img { width: 100%; height: 100%; object-fit: cover; }
 .hero > svg { width: 55%; }
 .hero--decorating { outline: 3px dashed var(--accent); outline-offset: 3px; }
-.trait-list { list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
 .history li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1.5px solid var(--paper-sunk); }
 .history li:first-child { border-top: 0; }
 

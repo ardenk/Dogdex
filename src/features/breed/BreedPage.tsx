@@ -74,14 +74,6 @@ export function BreedPage() {
                 <dd style={{ margin: 0 }}>{breed.temperament.join(', ')}</dd>
               </div>
             </dl>
-            <div className="stack">
-              <h2>Key identifying traits</h2>
-              <ul className="trait-list">
-                {breed.traits.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ul>
-            </div>
           </div>
         )}
       </div>
