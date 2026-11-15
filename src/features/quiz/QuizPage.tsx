@@ -222,7 +222,15 @@ export function QuizPage() {
       )}
 
       {celebration && (
-        <Celebration title="New badge!" glyph={celebration[0].glyph} badges={celebration} viewHref="/badges" onClose={() => setCelebration(null)} />
+        <Celebration
+          title="New badge!"
+          glyph={celebration[0].glyph}
+          badges={celebration}
+          viewHref="/badges"
+          viewState={{ from: 'quiz-results' }}
+          keepHistory // the results stay in the history, so Back (or the link on the Badges page) returns to them
+          onClose={() => setCelebration(null)}
+        />
       )}
     </main>
   )

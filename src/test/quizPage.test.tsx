@@ -1,11 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router'
 import { axe } from 'vitest-axe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { breedsById, data, quizPaths, quizPhotos } from '../data'
 import { buildRound, quizPool, seededRng } from '../domain/quiz'
 import type { Dog, Snapshot } from '../domain/types'
 import { DEFAULT_SETTINGS } from '../domain/types'
+import { BadgesPage } from '../features/badges/BadgesPage'
 import { BreedPage } from '../features/breed/BreedPage'
 import { HomePage } from '../features/home/HomePage'
 import { LogPage } from '../features/log/LogPage'
@@ -62,6 +63,7 @@ async function playRound(rightCount: number) {
 
 beforeEach(async () => {
   await db.settings.clear()
+  await db.badgeAwards.clear() // so a badge can be earned again in the next test
   vi.spyOn(Math, 'random').mockImplementation(seededRng(SEED))
   randomImageUrl.mockReset().mockImplementation(async (path: string) => `https://images.dog.ceo/breeds/${path.replace('/', '-')}/n1.jpg`)
   preloadImage.mockReset().mockResolvedValue(undefined)
@@ -622,6 +624,72 @@ describe('the way back from a breed page and the Log screen', () => {
   it('the Log screen opened normally still says Cancel and goes Home', () => {
     at(<LogPage />, '/log')
     expect(screen.getByRole('link', { name: '← Cancel' })).toHaveAttribute('href', '/')
+  })
+})
+
+describe('a badge earned at the end of a round', () => {
+  /** The quiz and the Badges page in one router, plus a stand-in for the browser's Back button. */
+  const renderWithBadges = () => {
+    function BrowserBack() {
+      const navigate = useNavigate()
+      return (
+        <button type="button" onClick={() => navigate(-1)}>
+          browser back
+        </button>
+      )
+    }
+    return render(
+      <MemoryRouter initialEntries={['/quiz']}>
+        <DataContext.Provider value={{ snapshot: snapshot(), settings: DEFAULT_SETTINGS }}>
+          <BrowserBack />
+          <Routes>
+            <Route path="/quiz" element={<QuizPage />} />
+            <Route path="/badges" element={<BadgesPage />} />
+          </Routes>
+        </DataContext.Provider>
+      </MemoryRouter>,
+    )
+  }
+  const earnTheBadge = async () => {
+    await repo.setSetting('quizStats', { rounds: 2, answered: 20, correct: 20, best: 10 })
+    await playRound(10)
+    await screen.findByRole('heading', { level: 1, name: '10 of 10' })
+    return screen.findByRole('alertdialog')
+  }
+
+  it('the Badges page it opens offers "← Back to results", which shows the same results without counting the round twice', async () => {
+    renderWithBadges()
+    const dialog = await earnTheBadge()
+    fireEvent.click(within(dialog).getByRole('link', { name: 'View' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Badges' })).toBeTruthy()
+    const back = screen.getByRole('link', { name: '← Back to results' })
+    expect(back).toHaveAttribute('href', '/quiz')
+
+    fireEvent.click(back)
+    expect(await screen.findByRole('heading', { level: 1, name: '10 of 10' })).toBeTruthy()
+    expect(screen.queryByRole('alertdialog')).toBeNull() // the message is not shown a second time
+    await new Promise((r) => setTimeout(r, 50))
+    expect((await repo.getSettings()).quizStats).toEqual({ rounds: 3, answered: 30, correct: 30, best: 10 })
+  })
+
+  it('the browser’s Back button returns to the results too (the results stay in the history)', async () => {
+    renderWithBadges()
+    const dialog = await earnTheBadge()
+    fireEvent.click(within(dialog).getByRole('link', { name: 'View' }))
+    await screen.findByRole('heading', { level: 1, name: 'Badges' })
+    fireEvent.click(screen.getByRole('button', { name: 'browser back' }))
+    expect(await screen.findByRole('heading', { level: 1, name: '10 of 10' })).toBeTruthy()
+  })
+
+  it('the Badges page has no back link when you open it normally', () => {
+    render(
+      <MemoryRouter>
+        <DataContext.Provider value={{ snapshot: snapshot(), settings: DEFAULT_SETTINGS }}>
+          <BadgesPage />
+        </DataContext.Provider>
+      </MemoryRouter>,
+    )
+    expect(screen.queryByRole('link', { name: /Back to results/ })).toBeNull()
   })
 })
 

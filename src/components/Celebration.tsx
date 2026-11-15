@@ -10,10 +10,17 @@ interface Props {
   glyph: string
   badges: BadgeDef[]
   viewHref?: string
+  /** History state to hand to the page the "View" link opens (so it can offer a way back). */
+  viewState?: unknown
+  /**
+   * Keep the current page in the browser's history when "View" is followed, so Back returns to it. By default the page is
+   * replaced, which suits the Log screen (a finished form you would not want to go Back to).
+   */
+  keepHistory?: boolean
   onClose: () => void
 }
 
-export function Celebration({ title, subtitle, glyph, badges, viewHref, onClose }: Props) {
+export function Celebration({ title, subtitle, glyph, badges, viewHref, viewState, keepHistory, onClose }: Props) {
   const done = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     done.current?.focus()
@@ -53,7 +60,7 @@ export function Celebration({ title, subtitle, glyph, badges, viewHref, onClose 
         )}
         <div className="row" style={{ width: '100%' }}>
           {viewHref && (
-            <Link to={viewHref} className="btn grow" replace>
+            <Link to={viewHref} state={viewState} className="btn grow" replace={!keepHistory}>
               View
             </Link>
           )}

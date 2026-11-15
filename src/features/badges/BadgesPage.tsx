@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Link, useLocation } from 'react-router'
 import { data } from '../../data'
 import { computeStats, evaluateBadges } from '../../domain/badges/engine'
 import { formatDate } from '../../domain/format'
@@ -9,9 +10,16 @@ export function BadgesPage() {
   const progress = useMemo(() => evaluateBadges(data.badges, computeStats(snapshot, data.breeds, settings.quizStats)), [snapshot, settings.quizStats])
   const awardedAt = new Map(snapshot.awards.map((a) => [a.badgeId, a.earnedAt]))
   const earnedCount = progress.filter((p) => p.earned).length
+  // Opened from the "New badge" message at the end of a quiz: offer the way back to the results.
+  const fromResults = (useLocation().state as { from?: string } | null)?.from === 'quiz-results'
 
   return (
     <main className="page">
+      {fromResults && (
+        <Link to="/quiz" state={{ quizResults: true }} className="back-link">
+          ← Back to results
+        </Link>
+      )}
       <header>
         <span className="eyebrow">
           {earnedCount} of {progress.length} earned
