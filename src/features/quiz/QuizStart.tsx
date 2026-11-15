@@ -50,6 +50,7 @@ export function QuizStart({ metQuizzable, online, onStart }: Props) {
 
   return (
     <div className="stack">
+      <Link to="/" className="back-link">← Home</Link>
       <header>
         <h1>What are we testing today?</h1>
       </header>
@@ -94,7 +95,6 @@ export function QuizStart({ metQuizzable, online, onStart }: Props) {
         Photos load from <a href="https://dog.ceo/dog-api/" target="_blank" rel="noreferrer">Dog CEO</a> (from the Stanford Dogs Dataset). Opening one tells that site
         your IP address, as any website does; nothing about you or your dogs is sent. Unfinished rounds aren’t counted.
       </p>
-      <Link to="/" className="back-link">← Home</Link>
     </div>
   )
 }
