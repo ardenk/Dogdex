@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_PHOTOS_PER_DOG } from '../domain/types'
+import { DEFAULT_SETTINGS, MAX_PHOTOS_PER_DOG } from '../domain/types'
+import type { Settings } from '../domain/types'
 import { awardNewBadges } from '../storage/awardBadges'
 import { createDb } from '../storage/db'
 import { createLocalRepo } from '../storage/localRepo'
@@ -63,6 +64,16 @@ describe('local repository', () => {
     expect((await repo.getSettings()).weeklyGoal).toBe(5)
     await repo.setSetting('weeklyGoal', 7)
     expect((await repo.getSettings()).weeklyGoal).toBe(7)
+  })
+  it('reads back every setting it saves (a setting missing from getSettings silently resets to its default)', async () => {
+    expect((await repo.getSettings()).identifyPhotos).toBe(false) // off until the user opts in
+    const changed = { weeklyGoal: 9, locationMode: 'off', identifyPhotos: true } as const
+    // Every setting the app has must appear here, so adding one without teaching getSettings about it fails this test.
+    expect(Object.keys(changed).sort()).toEqual(Object.keys(DEFAULT_SETTINGS).sort())
+    for (const [key, value] of Object.entries(changed)) await repo.setSetting(key as keyof Settings, value)
+    expect(await repo.getSettings()).toEqual(changed)
+    await repo.setSetting('identifyPhotos', false)
+    expect((await repo.getSettings()).identifyPhotos).toBe(false)
   })
   it('never stores raw coordinates, only the rounded cell', async () => {
     await repo.logSighting({ breedId: 'beagle', metAt: 1, placeLabel: 'Tribeca', geoCell: '40.72,-74.01' })

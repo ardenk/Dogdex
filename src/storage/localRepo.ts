@@ -264,6 +264,7 @@ export function createLocalRepo(db: DogdexDB = defaultDb): Repository {
       for (const r of rows) {
         if (r.key === 'weeklyGoal' && typeof r.value === 'number') out.weeklyGoal = r.value
         if (r.key === 'locationMode' && (r.value === 'auto' || r.value === 'off')) out.locationMode = r.value
+        if (r.key === 'identifyPhotos' && typeof r.value === 'boolean') out.identifyPhotos = r.value
       }
       return out
     },
