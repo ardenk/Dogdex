@@ -30,11 +30,15 @@ const sessionSchema = z.object({
   picked: z.string().nullable(),
   answers: z.array(z.object({ breedId: z.string(), pickedId: z.string(), correct: z.boolean() })),
   skipped: z.number().int().min(0),
+  /** True once the round is over and its results are showing. Kept so "Back to results" works from a breed page. */
+  finished: z.boolean().default(false),
 })
 
 export type QuizSession = z.infer<typeof sessionSchema>
+/** What the page keeps; `finished` is optional on the way in. */
+export type QuizSessionInput = Omit<z.input<typeof sessionSchema>, 'savedAt'>
 
-export function saveQuizSession(session: Omit<QuizSession, 'savedAt'>, now = Date.now()): void {
+export function saveQuizSession(session: QuizSessionInput, now = Date.now()): void {
   try {
     sessionStorage.setItem(KEY, JSON.stringify({ ...session, savedAt: now }))
   } catch {
@@ -74,4 +78,8 @@ export function loadQuizSession(now = Date.now()): QuizSession | null {
   }
 }
 
-export const hasQuizSession = (): boolean => loadQuizSession() !== null
+/** Is there a round still to finish? (A finished round whose results can be shown again does not count.) */
+export const hasQuizSession = (): boolean => {
+  const s = loadQuizSession()
+  return s !== null && !s.finished
+}

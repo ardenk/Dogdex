@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { clearQuizSession, hasQuizSession, loadQuizSession, saveQuizSession } from '../features/quiz/session'
-import type { QuizSession } from '../features/quiz/session'
+import type { QuizSessionInput } from '../features/quiz/session'
 
-const base = (over: Partial<Omit<QuizSession, 'savedAt'>> = {}): Omit<QuizSession, 'savedAt'> => ({
+const base = (over: Partial<QuizSessionInput> = {}): QuizSessionInput => ({
   mode: { kind: 'any' },
   format: 'choices',
   questions: [
@@ -24,7 +24,7 @@ describe('quiz round in progress', () => {
     expect(loadQuizSession()).toBeNull()
     expect(hasQuizSession()).toBe(false)
     saveQuizSession(base(), 1000)
-    expect(loadQuizSession(1000)).toEqual({ ...base(), savedAt: 1000 })
+    expect(loadQuizSession(1000)).toEqual({ ...base(), savedAt: 1000, finished: false })
     saveQuizSession(base()) // saved just now
     expect(hasQuizSession()).toBe(true)
   })
@@ -32,6 +32,19 @@ describe('quiz round in progress', () => {
   it('remembers a category round, an unanswered question, and "I don’t know"', () => {
     saveQuizSession(base({ mode: { kind: 'group', groupId: 'hound' }, format: 'search', picked: '' }), 5)
     expect(loadQuizSession(5)).toMatchObject({ mode: { kind: 'group', groupId: 'hound' }, format: 'search', picked: '' })
+  })
+
+  it('can keep a finished round so its results can be shown again, but it no longer counts as a round to resume', () => {
+    saveQuizSession(base({ finished: true }))
+    expect(loadQuizSession()).toMatchObject({ finished: true })
+    expect(hasQuizSession()).toBe(false)
+    saveQuizSession(base({ finished: false }))
+    expect(hasQuizSession()).toBe(true)
+  })
+
+  it('reads a round saved before "finished" existed as unfinished', () => {
+    sessionStorage.setItem('dogdex-quiz-in-progress', JSON.stringify({ ...base(), savedAt: Date.now() }))
+    expect(loadQuizSession()).toMatchObject({ finished: false })
   })
 
   it('can be cleared', () => {

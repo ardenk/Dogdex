@@ -16,8 +16,10 @@ export function BreedPage() {
   const breed = breedsById[breedId]
   const { snapshot } = useData()
   const [more, setMore] = useState(false)
-  // Opened from a quiz answer: the way back is the quiz (which remembers its place), not the Dogdex.
-  const fromQuiz = (useLocation().state as { from?: string } | null)?.from === 'quiz'
+  // Opened from the quiz: the way back is the quiz (which remembers its place), not the Dogdex.
+  const from = (useLocation().state as { from?: string } | null)?.from
+  const fromQuiz = from === 'quiz'
+  const fromResults = from === 'quiz-results'
 
   const dogs = snapshot.dogs.filter((d) => d.breedId === breedId).sort((a, b) => b.lastMetAt - a.lastMetAt)
   const encounterCount = (dogId: string) => snapshot.encounters.filter((e) => e.dogId === dogId).length
@@ -35,7 +37,9 @@ export function BreedPage() {
 
   return (
     <main className="page">
-      <Link to={fromQuiz ? '/quiz' : '/dogdex'} className="back-link">{fromQuiz ? '← Back to quiz' : '← Dogdex'}</Link>
+      <Link to={fromQuiz || fromResults ? '/quiz' : '/dogdex'} state={fromResults ? { quizResults: true } : undefined} className="back-link">
+        {fromResults ? '← Back to results' : fromQuiz ? '← Back to quiz' : '← Dogdex'}
+      </Link>
 
       <div className="hero" style={dogs.length ? undefined : { background: 'transparent', borderStyle: 'dashed', boxShadow: 'none' }}>
         {heroUrl ? <img src={heroUrl} alt={`A ${breed.name} you met`} /> : <Silhouette variant={breed.groupId} />}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { Celebration } from '../../components/Celebration'
 import { data, groupsById, quizPaths, quizPhotos } from '../../data'
 import type { BadgeDef } from '../../data'
@@ -24,13 +24,24 @@ const modeLabel = (mode: QuizMode, format: QuizFormat) =>
 export function QuizPage() {
   const { snapshot } = useData()
   const navigate = useNavigate()
+  const location = useLocation()
+  // "Back to results" from a breed page arrives with this flag in the history entry (also used by the browser's Back button).
+  const wantsResults = (location.state as { quizResults?: boolean } | null)?.quizResults === true
   const pool = useMemo(() => quizPool(data.breeds, quizPaths), [])
   const metIds = useMemo(() => new Set(snapshot.dogs.filter((d) => !d.deletedAt && d.breedId).map((d) => d.breedId as string)), [snapshot.dogs])
   const metQuizzable = useMemo(() => pool.filter((b) => metIds.has(b.id)).length, [pool, metIds])
 
   // A round left in progress (you went to read about a breed, say) comes back exactly where it was.
-  const [resumed] = useState(() => loadQuizSession())
-  const [phase, setPhase] = useState<Phase>(resumed ? (resumed.picked !== null ? 'answered' : resumed.imageUrl ? 'question' : 'loading') : 'start')
+  const [resumed] = useState(() => {
+    const kept = loadQuizSession()
+    // A finished round only comes back when you are returning to its results, not when you start the quiz afresh.
+    if (kept?.finished && !wantsResults) {
+      clearQuizSession()
+      return null
+    }
+    return kept
+  })
+  const [phase, setPhase] = useState<Phase>(resumed ? (resumed.finished ? 'results' : resumed.picked !== null ? 'answered' : resumed.imageUrl ? 'question' : 'loading') : 'start')
   const [mode, setMode] = useState<QuizMode>(resumed?.mode ?? { kind: 'any' })
   const [format, setFormat] = useState<QuizFormat>(resumed?.format ?? 'choices')
   const [questions, setQuestions] = useState<Question[]>(resumed?.questions ?? [])
@@ -45,7 +56,8 @@ export function QuizPage() {
   // Photos are requested one question ahead; a map of promises lets the next question appear without a wait.
   const photos = useRef(new Map<number, Promise<string>>())
   const ctl = useRef(new AbortController())
-  const saved = useRef(false)
+  // Totals are added once per round: a round restored at its results has already been counted.
+  const saved = useRef(resumed?.finished === true)
   useEffect(() => {
     const c = ctl.current
     return () => c.abort()
@@ -116,11 +128,17 @@ export function QuizPage() {
     })()
   }, [phase, answers])
 
-  // Remember the round while it is under way; forget it once it is finished or you are back at the start.
+  // Remember the round while it is under way (and its results once it is over); forget it when you are back at the start.
   useEffect(() => {
-    if (phase === 'start' || phase === 'results') clearQuizSession()
-    else if (questions.length > 0) saveQuizSession({ mode, format, questions, index, imageUrl, picked, answers, skipped })
+    if (phase === 'start') clearQuizSession()
+    else if (questions.length > 0) saveQuizSession({ mode, format, questions, index, imageUrl, picked, answers, skipped, finished: phase === 'results' })
   }, [phase, mode, format, questions, index, imageUrl, picked, answers, skipped])
+
+  // Mark the results in the browser's history, so Back from a breed page lands on them rather than on the start screen.
+  useEffect(() => {
+    if (phase === 'results' && !wantsResults) navigate(`${location.pathname}${location.search}`, { replace: true, state: { quizResults: true } })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
 
   const start = (next: QuizMode, nextFormat: QuizFormat) => {
     const round = buildRound({ pool, mode: next, metBreedIds: metIds, photoCounts: quizPhotos, choices: choicesFor(nextFormat) })
@@ -129,6 +147,7 @@ export function QuizPage() {
       setPhase('error')
       return
     }
+    if (wantsResults) navigate(`${location.pathname}${location.search}`, { replace: true, state: null }) // a new round, so no longer "the results"
     photos.current.clear()
     saved.current = false
     setMode(next)
@@ -188,6 +207,7 @@ export function QuizPage() {
 
       {phase === 'error' && (
         <div className="stack">
+          <Link to="/" className="back-link">← Home</Link>
           <h1>Quiz paused</h1>
           <p role="alert">{message ?? 'Something went wrong.'}</p>
           {questions.length > 0 && answers.length < questions.length && (
@@ -197,9 +217,6 @@ export function QuizPage() {
           )}
           <button type="button" className="btn btn--block" onClick={() => setPhase('start')}>
             Back to the start
-          </button>
-          <button type="button" className="btn btn--ghost btn--block" onClick={close}>
-            Leave the quiz
           </button>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { axe } from 'vitest-axe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -493,6 +493,104 @@ describe('keeping your place in the quiz', () => {
   })
 })
 
+describe('getting back to your results', () => {
+  /** The quiz and a breed page in one router, so a link from the results can really be followed and Back used. */
+  const renderApp = (initial: Parameters<typeof MemoryRouter>[0]['initialEntries'] = ['/quiz']) =>
+    render(
+      <MemoryRouter initialEntries={initial}>
+        <DataContext.Provider value={{ snapshot: snapshot(), settings: DEFAULT_SETTINGS }}>
+          <Routes>
+            <Route path="/quiz" element={<QuizPage />} />
+            <Route path="/dogdex/breed/:breedId" element={<BreedPage />} />
+          </Routes>
+        </DataContext.Provider>
+      </MemoryRouter>,
+    )
+
+  it('shows the same results again after you look up a breed you missed, and does not count the round twice', async () => {
+    renderApp()
+    const qs = await playRound(7)
+    expect(await screen.findByRole('heading', { level: 1, name: '7 of 10' })).toBeTruthy()
+    await waitFor(async () => expect((await repo.getSettings()).quizStats.rounds).toBe(1))
+
+    const missed = breedsById[qs[7].breedId]
+    fireEvent.click(screen.getByRole('link', { name: missed.name }))
+    expect(await screen.findByRole('heading', { level: 1, name: missed.name })).toBeTruthy()
+    const back = screen.getByRole('link', { name: '← Back to results' })
+    expect(back).toHaveAttribute('href', '/quiz')
+
+    fireEvent.click(back)
+    expect(await screen.findByRole('heading', { level: 1, name: '7 of 10' })).toBeTruthy()
+    expect(screen.getAllByRole('link').filter((l) => l.getAttribute('href')?.startsWith('/dogdex/breed/')).length).toBe(3) // the three misses are listed again
+    await new Promise((r) => setTimeout(r, 50))
+    expect((await repo.getSettings()).quizStats).toEqual({ rounds: 1, answered: 10, correct: 7, best: 7 })
+  })
+
+  it('also works with the browser’s Back button (the results are marked in the history)', async () => {
+    renderApp()
+    const qs = await playRound(7)
+    await screen.findByRole('heading', { level: 1, name: '7 of 10' })
+    const missed = breedsById[qs[8].breedId]
+    fireEvent.click(screen.getByRole('link', { name: missed.name }))
+    await screen.findByRole('heading', { level: 1, name: missed.name })
+    // Browsers keep each history entry's state, so Back returns to an entry that says "these are the results".
+    cleanup()
+    renderApp([{ pathname: '/quiz', state: { quizResults: true } }])
+    expect(await screen.findByRole('heading', { level: 1, name: '7 of 10' })).toBeTruthy()
+  })
+
+  it('starting the quiz afresh does not show an old finished round', async () => {
+    renderApp()
+    await playRound(7)
+    await screen.findByRole('heading', { level: 1, name: '7 of 10' })
+    cleanup()
+    renderApp(['/quiz']) // e.g. Home, then Play
+    expect(screen.getByRole('heading', { name: 'What are we testing today?' })).toBeTruthy()
+  })
+
+  it('"Play again" from restored results starts a fresh round', async () => {
+    renderApp()
+    await playRound(7)
+    await screen.findByRole('heading', { level: 1, name: '7 of 10' })
+    cleanup()
+    renderApp([{ pathname: '/quiz', state: { quizResults: true } }])
+    await screen.findByRole('heading', { level: 1, name: '7 of 10' })
+    vi.spyOn(Math, 'random').mockImplementation(seededRng(SEED))
+    fireEvent.click(screen.getByRole('button', { name: 'Play again' }))
+    expect(await screen.findByText('Question 1 of 10')).toBeTruthy()
+  })
+
+  it('a breed page opened any other way, or from a question, does not say "results"', () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/dogdex/breed/beagle', state: { from: 'quiz' } }]}>
+        <DataContext.Provider value={{ snapshot: snapshot(), settings: DEFAULT_SETTINGS }}>
+          <Routes>
+            <Route path="/dogdex/breed/:breedId" element={<BreedPage />} />
+          </Routes>
+        </DataContext.Provider>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: '← Back to quiz' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: '← Back to results' })).toBeNull()
+  })
+
+  it('Home does not offer to resume a round that is already finished', async () => {
+    renderApp()
+    await playRound(7)
+    await screen.findByRole('heading', { level: 1, name: '7 of 10' })
+    cleanup()
+    render(
+      <MemoryRouter>
+        <DataContext.Provider value={{ snapshot: snapshot(), settings: DEFAULT_SETTINGS }}>
+          <HomePage />
+        </DataContext.Provider>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: 'Play' })).toBeTruthy()
+    expect(screen.queryByText('You have a round in progress.')).toBeNull()
+  })
+})
+
 describe('the way back from a breed page and the Log screen', () => {
   const at = (ui: React.ReactNode, path: string, state?: unknown) =>
     render(
@@ -524,6 +622,32 @@ describe('the way back from a breed page and the Log screen', () => {
   it('the Log screen opened normally still says Cancel and goes Home', () => {
     at(<LogPage />, '/log')
     expect(screen.getByRole('link', { name: '← Cancel' })).toHaveAttribute('href', '/')
+  })
+})
+
+describe('back links sit at the top of the page', () => {
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+  it('the results screen has its Home link above the score, and nothing after the buttons', async () => {
+    renderQuiz()
+    await playRound(7)
+    const home = await screen.findByRole('link', { name: '← Home' })
+    expect(before(home, screen.getByRole('heading', { level: 1, name: '7 of 10' }))).toBe(true)
+    expect(before(home, screen.getByRole('button', { name: 'Play again' }))).toBe(true)
+    expect(screen.getAllByRole('link', { name: '← Home' })).toHaveLength(1)
+    // The last thing on the page is an action button, not a link.
+    const main = document.querySelector('main') as HTMLElement
+    expect(main.querySelector('.stack')?.lastElementChild?.tagName).toBe('BUTTON')
+  })
+
+  it('the paused screen has its Home link at the top too, with no separate "Leave the quiz" button', async () => {
+    randomImageUrl.mockRejectedValue(new dogceo.QuizImageError('network', 'Could not reach the photo service. Check your connection.'))
+    renderQuiz()
+    startMedium()
+    const heading = await screen.findByRole('heading', { name: 'Quiz paused' })
+    expect(before(screen.getByRole('link', { name: '← Home' }), heading)).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Leave the quiz' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
   })
 })
 

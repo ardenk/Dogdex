@@ -24,6 +24,9 @@ export function QuizResults({ answers, skipped, modeLabel, onAgain, onChangeMode
 
   return (
     <div className="stack">
+      <Link to="/" className="back-link">
+        ← Home
+      </Link>
       <header>
         <span className="eyebrow">{modeLabel}</span>
         <h1>
@@ -39,7 +42,7 @@ export function QuizResults({ answers, skipped, modeLabel, onAgain, onChangeMode
           <ul className="stack">
             {missed.map((a) => (
               <li key={a.breedId} className="card quiz-missed">
-                <Link to={`/dogdex/breed/${a.breedId}`}>
+                <Link to={`/dogdex/breed/${a.breedId}`} state={{ from: 'quiz-results' }}>
                   <strong>{breedsById[a.breedId].name}</strong>
                 </Link>
                 <span className="muted small"> {a.pickedId ? `You said ${breedsById[a.pickedId].name}` : 'You skipped this one'}</span>
@@ -55,9 +58,6 @@ export function QuizResults({ answers, skipped, modeLabel, onAgain, onChangeMode
       <button type="button" className="btn btn--block" onClick={onChangeMode}>
         Change what I’m quizzed on
       </button>
-      <Link to="/" className="back-link">
-        ← Home
-      </Link>
     </div>
   )
 }
