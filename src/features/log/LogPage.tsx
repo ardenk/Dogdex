@@ -70,7 +70,6 @@ export function LogPage() {
   )
 
   const [customGroupId, setCustomGroupId] = useState('')
-  const [detailsOpen, setDetailsOpen] = useState(false)
   const [name, setName] = useState('')
   const [owner, setOwner] = useState('')
   const [note, setNote] = useState('')
@@ -217,8 +216,6 @@ export function LogPage() {
   const selectedLabel = selectedBreed?.name ?? selected?.customLabel
   const guessBreed = guess ? breedsById[guess] : undefined
 
-  const detailsSummary = [place || (locating ? 'Finding place…' : ''), name].filter(Boolean).join(' · ')
-
   return (
     <div className="app">
       <main className="page page--bare">
@@ -274,6 +271,18 @@ export function LogPage() {
             </button>
           </div>
         )}
+
+        {/* Names (optional): asked up front, so you can fill them in while you are with the dog, before choosing the breed. */}
+        <div className="card stack">
+          <div className="field">
+            <label htmlFor="dog-name">Dog’s name</label>
+            <input id="dog-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" placeholder="Optional" />
+          </div>
+          <div className="field">
+            <label htmlFor="owner-name">Owner’s name</label>
+            <input id="owner-name" className="input" value={owner} onChange={(e) => setOwner(e.target.value)} autoComplete="off" placeholder="Optional" />
+          </div>
+        </div>
 
         {/* Stage: pick (no photo) */}
         {!photo && !selected && (
@@ -393,48 +402,29 @@ export function LogPage() {
           </div>
         )}
 
-        {/* Details (optional, collapsed) */}
+        {/* The rest of the details (all optional), shown once there is a breed. The names are up with the photo. */}
         {selected && (!photo || stage === 'reveal') && (
-          <div className="stack">
-            <button type="button" className="expander" aria-expanded={detailsOpen} aria-controls="log-details" onClick={() => setDetailsOpen((v) => !v)}>
-              <span>
-                Add details
-                {detailsSummary && <span className="muted small"> · {detailsSummary}</span>}
-              </span>
-              <span aria-hidden="true">{detailsOpen ? '−' : '+'}</span>
-            </button>
-            {detailsOpen && (
-              <div id="log-details" className="card stack">
-                <div className="field">
-                  <label htmlFor="dog-name">Dog’s name</label>
-                  <input id="dog-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
-                </div>
-                <div className="field">
-                  <label htmlFor="owner-name">Owner’s name</label>
-                  <input id="owner-name" className="input" value={owner} onChange={(e) => setOwner(e.target.value)} autoComplete="off" />
-                </div>
-                <div className="field">
-                  <label htmlFor="dog-note">Note</label>
-                  <textarea id="dog-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="met-at">When</label>
-                  <input id="met-at" className="input" type="datetime-local" value={metAt} onChange={(e) => setMetAt(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="place">Neighborhood</label>
-                  <input
-                    id="place"
-                    className="input"
-                    value={place}
-                    onChange={(e) => setPlace(e.target.value)}
-                    placeholder={locating ? 'Finding your neighborhood…' : 'Optional'}
-                    autoComplete="off"
-                  />
-                  <span className="muted small">Only the neighborhood is saved, never your exact location.</span>
-                </div>
-              </div>
-            )}
+          <div className="card stack">
+            <div className="field">
+              <label htmlFor="dog-note">Note</label>
+              <textarea id="dog-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
+            </div>
+            <div className="field">
+              <label htmlFor="met-at">When</label>
+              <input id="met-at" className="input" type="datetime-local" value={metAt} onChange={(e) => setMetAt(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="place">Neighborhood</label>
+              <input
+                id="place"
+                className="input"
+                value={place}
+                onChange={(e) => setPlace(e.target.value)}
+                placeholder={locating ? 'Finding your neighborhood…' : 'Optional'}
+                autoComplete="off"
+              />
+              <span className="muted small">Only the neighborhood is saved, never your exact location.</span>
+            </div>
           </div>
         )}
       </main>

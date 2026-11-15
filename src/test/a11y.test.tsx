@@ -53,9 +53,8 @@ describe('accessibility (axe)', () => {
     ))
   it('Breed picker', async () => check(wrap(<BreedPicker onSelect={() => {}} recentBreedIds={['beagle']} />).container))
   it('Log screen', async () => check(wrap(<LogPage />, '/log').container))
-  it('Log screen with a preselected breed and details open', async () => {
-    const { container, getByRole } = wrap(<LogPage />, '/log?breed=beagle')
-    getByRole('button', { name: /add details/i }).click()
+  it('Log screen with a preselected breed and its details', async () => {
+    const { container } = wrap(<LogPage />, '/log?breed=beagle')
     await check(container)
   })
   it('Account card, signed out', async () => {
