@@ -146,6 +146,21 @@ describe('identify-breed edge function', () => {
     expect(last).toBe(429)
   })
 
+  it('logs why Google refused (so a bad server key is findable) without logging the key or the photo', async () => {
+    const logged: string[] = []
+    const spy = vi.spyOn(console, 'error').mockImplementation((m: string) => void logged.push(String(m)))
+    try {
+      const rejected = call({ image: photo }, { fetchImpl: (async () => new Response(JSON.stringify({ error: { code: 400, message: 'API key not valid. Please pass a valid API key.' } }), { status: 400 })) as unknown as typeof fetch })
+      expect((await rejected.run()).status).toBe(502)
+      expect(logged.join('\n')).toContain('Cloud Vision answered 400')
+      expect(logged.join('\n')).toContain('API key not valid')
+      expect(logged.join('\n')).not.toContain('secret-key')
+      expect(logged.join('\n')).not.toContain(photo)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('maps Google failures to clear errors', async () => {
     const down = call({ image: photo }, { fetchImpl: (async () => { throw new Error('offline') }) as unknown as typeof fetch })
     expect((await down.run()).status).toBe(502)

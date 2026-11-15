@@ -154,10 +154,18 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     return fail(502, 'upstream-unreachable', 'Could not reach the identification service.')
   }
   if (res.status === 429) return fail(429, 'rate-limited', 'The identification service is busy. Try again in a little while.')
-  if (!res.ok) return fail(502, 'upstream-error', `The identification service returned an error (${res.status}).`)
+  if (!res.ok) {
+    // Google's reason ("API key not valid", "billing not enabled"...) goes to the function log so a misconfiguration is findable.
+    // It never contains our key; the photo is not included.
+    console.error(`identify-breed: Cloud Vision answered ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`)
+    return fail(502, 'upstream-error', `The identification service returned an error (${res.status}).`)
+  }
   try {
     const body = await res.json()
-    if (body.responses?.[0]?.error) return fail(502, 'upstream-error', 'The identification service could not read that photo.')
+    if (body.responses?.[0]?.error) {
+      console.error(`identify-breed: Cloud Vision could not process the photo: ${String(body.responses[0].error.message ?? '').slice(0, 300)}`)
+      return fail(502, 'upstream-error', 'The identification service could not read that photo.')
+    }
     return json(200, { predictions: parseVision(body) })
   } catch {
     return fail(502, 'upstream-error', 'The identification service sent a response we could not read.')
